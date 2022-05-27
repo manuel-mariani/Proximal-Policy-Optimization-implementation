@@ -12,7 +12,9 @@ dependencies:
   - jupyterlab
   - gym
   - blackd
+  - black-jupyter
   - jupytext
+  - matplotlib
   - pip
   - pip:
     - procgen
