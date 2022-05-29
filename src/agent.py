@@ -1,5 +1,5 @@
 import numpy as np
-from gym.spaces import Discrete, Box
+from gym.spaces import Box, Discrete
 
 
 class Agent:
@@ -15,13 +15,9 @@ class Agent:
         self.train = train
         self.eps = eps
         self.rng = np.random.default_rng()
-        pass
 
     def act(self, obs):
-        if self.train:
-            return self._training_policy(obs)
-        else:
-            return self._target_policy(obs)
+        return self._training_policy(obs) if self.train else self._target_policy(obs)
 
     def _target_policy(self, obs):
         # TODO: implement
