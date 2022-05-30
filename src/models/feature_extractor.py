@@ -12,11 +12,11 @@ class FeatureExtractor(nn.Module):
 
         # ResNet
         self.cnn = nn.Sequential(
-    ResidualBottleneckBlock(3, 8, stride=2),
-    ResidualBottleneckBlock(8, 8, stride=2),
-    ResidualBottleneckBlock(8, 16),
-    ResidualBottleneckBlock(16, 16),
-)
+            ResidualBottleneckBlock(3, 8, stride=2),
+            ResidualBottleneckBlock(8, 8, stride=2),
+            ResidualBottleneckBlock(8, 16),
+            ResidualBottleneckBlock(16, 16),
+        )
 
         # Linear layer
         self.linear = nn.Sequential(
@@ -39,14 +39,14 @@ class ResidualBottleneckBlock(nn.Module):
 
         self.shortcut = nn.Identity()
         self.block = nn.Sequential(
-    conv_bn_block(in_ch, out_ch, 1),  # 1x1
-    conv_bn_block(out_ch, out_ch, 3, padding=1, stride=stride),  # 3x3
-    conv_bn_block(out_ch, out_ch, 1, activate=False),  # 1x1
-)
+            conv_bn_block(in_ch, out_ch, 1),  # 1x1
+            conv_bn_block(out_ch, out_ch, 3, padding=1, stride=stride),  # 3x3
+            conv_bn_block(out_ch, out_ch, 1, activate=False),  # 1x1
+        )
 
         # If the output channels are different from the input, also convolve the skip connection
         if in_ch != out_ch or stride != 1:
-    self.shortcut = nn.Conv2d(in_ch, out_ch, 1, stride=stride)
+            self.shortcut = nn.Conv2d(in_ch, out_ch, 1, stride=stride)
 
     def forward(self, x):
         identity = self.shortcut(x)
