@@ -15,6 +15,9 @@
 # +
 import gym
 import numpy as np
+from matplotlib import pyplot as plt
+from matplotlib.animation import FuncAnimation
+from IPython.display import HTML
 import procgen
 
 procgen.env
@@ -49,7 +52,7 @@ env.action_space
 # + pycharm={"name": "#%%\n"}
 # %matplotlib
 from utils import render_buffer
-from tqdm.auto import trange
+from tqdm.auto import tqdm, trange
 
 n_parallel = 256
 venv = procgen.ProcgenGym3Env(
@@ -84,9 +87,73 @@ venv.ac_space.eltype.n
 venv.ob_space
 
 # + pycharm={"name": "#%%\n"}
-from torch.distributions import Categorical
+# Episode X Step
 import torch
 
-dist = torch.rand((n_parallel, n_actions))
-dist = Categorical(dist)
-dist.sample().numpy()
+is_first = torch.tensor(
+    [
+        [1, 0, 0, 0, 0, 1, 0, 0, 1],
+        [0, 0, 1, 0, 0, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0, 0, 0, 1, 1],
+        [0, 0, 0, 0, 0, 1, 0, 0, 0],
+    ]
+).bool()
+rewards = torch.tensor(
+    [
+        [0, 0, 0, 0, 20, 0, 0, 0, 10],
+        [0, 0, 0, 0, 0, 10, 0, 0, 20],
+        [0, 0, 0, 0, 0, 0, 0, 1, 30],
+        [0, 0, 0, 0, 0, 1, 0, 0, 0],
+    ]
+)
+
+# + pycharm={"name": "#%%\n"}
+t = is_first.clone().float()
+t[:, 0] = 1
+# t = torch.cat((t, torch.ones(t.size(0)).unsqueeze(-1)), dim=1)
+print(t)
+size = t.size(1)
+m = torch.argwhere(t)
+res = []
+
+prev_i = m[0, 0]
+prev_j = m[0, 0]
+for i, j in m[1:, :].numpy():
+    if i != prev_i:
+        res.append(rewards[prev_i, prev_j:size])
+    else:
+        res.append(rewards[i, prev_j:j])
+    prev_i = i
+    prev_j = j
+    print(i, j)
+print(res)
+
+# + pycharm={"name": "#%%\n"}
+[][-1] * 0
+
+# + pycharm={"name": "#%%\n"}
+episodes_rewards = res
+discounted_rewards = []
+gamma = 0.99
+
+for er in episodes_rewards:
+    er = torch.flip(er, (0,))
+    dr = [er[0]]
+    for r in er[1:]:
+        dr.append(r + gamma * dr[-1])
+    dr = torch.flip(torch.tensor(dr), (0,))
+    discounted_rewards.append(dr)
+
+    # g = torch.ones(er.size()) * gamma
+    # g = torch.cumprod(g, dim=-1)
+    # print("G", g)
+    # m = torch.ones((er.size(0), er.size(0)))
+    # m = torch.triu(m)
+    # print("m", m)
+    # disc = m * er
+    # print("disc", disc)
+    # print()
+    # print()
+print(episodes_rewards)
+print()
+print(discounted_rewards)

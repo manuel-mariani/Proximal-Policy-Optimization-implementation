@@ -106,7 +106,7 @@ class VectorizedReplayBuffer:
             rew, obs, first = venv.observe()
 
             # Convert obs tensor  [N, W, H, C] to [N, C, W, H]
-            obs = torch.tensor(obs['rgb'], dtype=torch.float16).detach().to(device)
+            obs = torch.tensor(obs['rgb'], dtype=torch.float).detach().to(device)
             obs = torch.permute(obs, (0, 3, 1, 2)) / 255
 
             # Act
@@ -118,7 +118,7 @@ class VectorizedReplayBuffer:
             # Remove tensors from GPU (no effect if using cpu)
             obs = obs.to("cpu")
             log_probs = log_probs.to("cpu")
-            chosen_actions = chosen_actions.to("cpu")
+            chosen_actions = chosen_actions.detach().to("cpu")
 
             # Number items
             self.rewards.append(torch.from_numpy(rew).detach())
@@ -134,3 +134,38 @@ class VectorizedReplayBuffer:
         self.chosen_actions = torch.stack(self.chosen_actions)
         self.obs = torch.stack(self.obs)
         self.log_probs = torch.stack(self.log_probs)
+
+    def to_single_episodes(self):
+        # Variables used for returning
+        # _obs = []
+        _log_probs = []
+        _rewards = []
+        # _chosen_actions = []
+
+        # is_first is a tensor with 1 where a new episode begins
+        is_first = self.first.clone().T
+        is_first[:, 0] = 1  # Enforce starting
+
+        # Take the indices where episodes begin (tensor of size "n starts" x 2)
+        m = torch.argwhere(is_first)
+
+        # Take the first episode start
+        prev_i = m[0, 0]
+        prev_j = m[0, 1]
+        length = is_first.size(1)
+
+        # Iterate through the start indices, taking slices
+        for row, col in m[1:, :].numpy():
+            # If the current row changes, then append the remaining row
+            if row != prev_i:
+                row_idx, col_end = prev_i, length
+            # Otherwise, append the current window
+            else:
+                row_idx, col_end = row, col
+
+            # Appending and stepping
+            _rewards.append(self.rewards.T[row_idx, prev_j:col_end])
+            _log_probs.append(self.log_probs.T[row_idx, prev_j:col_end])
+            prev_i, prev_j = row, col
+
+        return {'rewards': _rewards, 'log_probs': _log_probs}
