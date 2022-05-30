@@ -27,14 +27,14 @@ class ActionNet(nn.Module):
         )
 
     def forward(self, x):
-    # x, self.internal_state = self.memory_block(x, self.internal_state)
-    # self.internal_state = tuple((s.detach() for s in self.internal_state))  # Remove from computation graph
-    x = self.action_block(x)
-    return x
+        # x, self.internal_state = self.memory_block(x, self.internal_state)
+        # self.internal_state = tuple((s.detach() for s in self.internal_state))  # Remove from computation graph
+        x = self.action_block(x)
+        return x
 
     def reset(self):
-    # self.internal_state = None
-    pass
+        # self.internal_state = None
+        pass
 
 
 if __name__ == "__main__":
