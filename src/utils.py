@@ -1,17 +1,51 @@
+import gym
+import gym3
+import procgen
 import torch
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-from src.replay_buffer import ReplayBuffer
+
+def generate_environment(env_name="coinrun", render=None) -> gym.Env:
+    return gym.make(
+        f"procgen:procgen-{env_name}-v0",
+        render=render,
+        start_level=0,
+        num_levels=0,
+        distribution_mode="hard",  # "easy", "hard", "extreme", "memory", "exploration"
+        restrict_themes=True,
+        use_backgrounds=False,
+        use_monochrome_assets=False,
+    )
 
 
-def render_buffer(replay_buffer: ReplayBuffer, fps=60):
-    obs_list = replay_buffer.curr_state_buffer
+def generate_vec_environment(
+    n_parallel,
+    env_name="coinrun",
+) -> gym3.Env:
+    return procgen.ProcgenGym3Env(
+        num=n_parallel,
+        env_name="coinrun",
+        start_level=0,
+        num_levels=0,
+        distribution_mode="hard",  # "easy", "hard", "extreme", "memory", "exploration"
+        restrict_themes=True,
+        use_backgrounds=False,
+        use_monochrome_assets=False,
+    )
+
+
+def render_buffer(replay_buffer, fps=60):
+    """Renders a ReplayBuffer using matplotlib"""
+    if isinstance(replay_buffer, list):
+        obs_list = replay_buffer
+    else:
+        obs_list = replay_buffer.curr_state_buffer
     it = iter(obs_list)
     fig = plt.figure()
     im = plt.imshow(next(it))
 
-    def update(i):
+    def update(_):
         im.set_array(next(it))
         return [im]
 
@@ -21,9 +55,21 @@ def render_buffer(replay_buffer: ReplayBuffer, fps=60):
 
 
 def test_net(net: torch.nn.Module, input_size, output_size=None):
+    """Simple test on a torch network, used to see if the output is congruent with assumption"""
     x = torch.rand(*input_size)
     out = net(x)
     print("Output_size:", out.size(), out.numel())
     if output_size:
         assert tuple(out.size()) == output_size
     print("✅ Passed")
+
+
+def obs_to_tensor(obs, dtype=None):
+    if isinstance(obs, list):
+        return torch.stack([obs_to_tensor(x) for x in obs])
+    x = torch.tensor(obs, dtype=dtype)
+    x = torch.permute(x, (2, 0, 1))
+    x = x / 255
+    if x.ndim < 4:
+        x = torch.unsqueeze(x, 0)
+    return x
