@@ -2,6 +2,7 @@ import gym3
 import numpy as np
 import torch
 from gym import Env
+from torch import Tensor
 from torch.distributions import Distribution
 from tqdm.auto import trange
 
@@ -84,63 +85,62 @@ class ReplayBuffer:
 class VectorizedReplayBuffer:
     def __init__(self, buffer_size):
         self.buffer_size = buffer_size
-        self.obs = []
-        # self.next_obs = []
-        self.rewards = []
-        self.chosen_actions = []
-        self.log_probs = []
-        self.first = []
+        self.obs: list | Tensor = []
+        self.rewards: list | Tensor = []
+        self.chosen_actions: list | Tensor = []
+        self.log_probs: list | Tensor = []
+        self.first: list | Tensor = []
 
     def reset(self):
         self.obs = []
-        # self.next_obs = []
         self.rewards = []
         self.chosen_actions = []
         self.log_probs = []
         self.first = []
 
-    def __call__(self, venv: gym3.Env, agent: Agent, device, progress_bar=False):
+    def __call__(self, venv: gym3.Env, agent: Agent, device, progress_bar=False, enable_grad=False):
         steps = trange(self.buffer_size) if progress_bar else range(progress_bar)
         self.reset()
-        for _ in steps:
-            rew, obs, first = venv.observe()
+        with torch.set_grad_enabled(enable_grad):
+            for _ in steps:
+                rew, obs, first = venv.observe()
 
-            # Convert obs tensor  [N, W, H, C] to [N, C, W, H]
-            obs = torch.tensor(obs['rgb'], dtype=torch.float).detach().to(device)
-            obs = torch.permute(obs, (0, 3, 1, 2)) / 255
+                # Convert obs tensor  [N, W, H, C] to [N, C, W, H]
+                obs = torch.tensor(obs["rgb"], dtype=torch.float).detach().to(device)
+                obs = torch.permute(obs, (0, 3, 1, 2)) / 255
 
-            # Act
-            action_dists = agent.act(obs)
-            chosen_actions = action_dists.sample()
-            venv.act(chosen_actions.cpu().detach().numpy())
-            log_probs = action_dists.log_prob(chosen_actions)
+                # Act
+                action_dists = agent.act(obs)
+                chosen_actions = action_dists.sample()
+                venv.act(chosen_actions.cpu().detach().numpy())
+                log_probs = action_dists.log_prob(chosen_actions)
 
-            # Remove tensors from GPU (no effect if using cpu)
-            obs = obs.to("cpu")
-            log_probs = log_probs.to("cpu")
-            chosen_actions = chosen_actions.detach().to("cpu")
+                # Remove tensors from GPU (no effect if using cpu)
+                obs = obs.to("cpu")
+                log_probs = log_probs.to("cpu")
+                chosen_actions = chosen_actions.detach().to("cpu")
 
-            # Number items
-            self.rewards.append(torch.from_numpy(rew).detach())
-            self.first.append(torch.from_numpy(first).detach().bool())
-            self.chosen_actions.append(chosen_actions)
-            # Other
-            self.obs.append(obs)
-            self.log_probs.append(log_probs)
+                # Number items
+                self.rewards.append(torch.from_numpy(rew).detach())
+                self.first.append(torch.from_numpy(first).detach().bool())
+                self.chosen_actions.append(chosen_actions)
+                # Other
+                self.obs.append(obs)
+                self.log_probs.append(log_probs)
 
-        # To tensor
-        self.rewards = torch.stack(self.rewards)
-        self.first = torch.stack(self.first)
-        self.chosen_actions = torch.stack(self.chosen_actions)
-        self.obs = torch.stack(self.obs)
-        self.log_probs = torch.stack(self.log_probs)
+            # To tensor
+            self.rewards = torch.stack(self.rewards)
+            self.first = torch.stack(self.first)
+            self.chosen_actions = torch.stack(self.chosen_actions)
+            self.obs = torch.stack(self.obs)
+            self.log_probs = torch.stack(self.log_probs)
 
     def to_single_episodes(self):
         # Variables used for returning
-        # _obs = []
+        _chosen_actions = []
         _log_probs = []
         _rewards = []
-        # _chosen_actions = []
+        _obs = []
 
         # is_first is a tensor with 1 where a new episode begins
         is_first = self.first.clone().T
@@ -150,22 +150,23 @@ class VectorizedReplayBuffer:
         m = torch.argwhere(is_first)
 
         # Take the first episode start
-        prev_i = m[0, 0]
-        prev_j = m[0, 1]
+        prev_row = m[0, 0].item()
+        prev_col = m[0, 1].item()
         length = is_first.size(1)
 
         # Iterate through the start indices, taking slices
         for row, col in m[1:, :].numpy():
             # If the current row changes, then append the remaining row
-            if row != prev_i:
-                row_idx, col_end = prev_i, length
+            if row != prev_row:
+                row_idx, col_end = prev_row, length
             # Otherwise, append the current window
             else:
-                row_idx, col_end = row, col
-
+                row_idx, col_end = row, col + 1
             # Appending and stepping
-            _rewards.append(self.rewards.T[row_idx, prev_j:col_end])
-            _log_probs.append(self.log_probs.T[row_idx, prev_j:col_end])
-            prev_i, prev_j = row, col
+            _rewards.append(self.rewards[prev_col:col_end, row_idx])
+            _log_probs.append(self.log_probs[prev_col:col_end, row_idx])
+            _obs.append(self.obs[prev_col:col_end, row_idx])
+            _chosen_actions.append(self.chosen_actions[prev_col:col_end, row_idx])
+            prev_row, prev_col = row, col
 
-        return {'rewards': _rewards, 'log_probs': _log_probs}
+        return {"rewards": _rewards, "log_probs": _log_probs, "obs":_obs, "chosen_actions":_chosen_actions}

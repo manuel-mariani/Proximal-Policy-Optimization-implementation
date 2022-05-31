@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from torch import autocast, nn
 from torch.cuda.amp import GradScaler
@@ -7,8 +8,8 @@ from tqdm.auto import tqdm
 from agents.agent import Agent
 from models.action_net import ActionNet
 from models.feature_extractor import FeatureExtractor
-from replay_buffer import ReplayBuffer, VectorizedReplayBuffer
-from utils import generate_environment, generate_vec_environment, obs_to_tensor
+from replay_buffer import VectorizedReplayBuffer
+from utils import discount, generate_environment, generate_vec_environment, obs_to_tensor
 
 
 # ======================================================================
@@ -18,14 +19,21 @@ class ReinforceAgent(Agent):
         self.is_training = True
 
         # Initialize the network
-        n_features = 256
-        self.feature_extractor = FeatureExtractor(n_features)
+        n_features = 128
+        self.feature_extractor = FeatureExtractor(n_features, downsampling=1)
         self.action_net = ActionNet(n_features, act_space_size)
         self.model = nn.Sequential(self.feature_extractor, self.action_net)
 
-    def act(self, obs: torch.Tensor):
-        # with autocast("cpu" if obs.device == "cpu" else "cuda"):
-        dist = self.model(obs)
+    def act(self, obs: torch.Tensor, add_rand=True):
+        with autocast("cpu" if obs.device == "cpu" else "cuda"):
+            dist = self.model(obs)
+        if not self.is_training:
+            onehot = torch.zeros(dist.size())
+            best_a = torch.argmax(dist, dim=-1)
+            onehot[:, best_a] = 1
+            return Categorical(onehot)
+        if add_rand:
+            dist = dist + torch.rand_like(dist).detach() * 0.1
         return Categorical(dist)
 
     def reset(self):
@@ -43,9 +51,9 @@ class ReinforceAgent(Agent):
 # ======================================================================
 
 
-def train(n_episodes=100, n_parallel=128, buffer_size=200):
+def train(n_episodes=30, n_parallel=128, buffer_size=500):
     print("Initializing")
-    venv = generate_vec_environment(n_parallel, "bossrush")
+    venv = generate_vec_environment(n_parallel)
     replay_buffer = VectorizedReplayBuffer(buffer_size)
     agent = ReinforceAgent(-1, 15)
 
@@ -61,51 +69,44 @@ def train(n_episodes=100, n_parallel=128, buffer_size=200):
         replay_buffer(venv, agent, device, progress_bar=True)
         episode_dict = replay_buffer.to_single_episodes()
 
-        # Take the *episodes* rewards and actions probabilities (log)
-        ep_rewards = episode_dict['rewards']
-        ep_log_probs = episode_dict['log_probs']
+        # Take the *episodes* obs, rewards and chosen actions
+        ep_chosen_actions = episode_dict["chosen_actions"]
+        ep_rewards = episode_dict["rewards"]
+        ep_obs = episode_dict["obs"]
 
         # Compute the discounted rewards
-        discounted_rewards = []
-        gamma = 0.9999
-
-        for er in ep_rewards:
-            er = torch.flip(er, (0,))
-            dr = [er[0]]
-            for r in er[1:]:
-                dr.append(r + gamma * dr[-1])
-            dr = torch.flip(torch.tensor(dr), (0,))
-            discounted_rewards.append(dr)
-
-        # Compute the loss
+        ep_disc_rewards = discount(ep_rewards, gamma=0.9999)
         losses = []
-        for episode in range(len(ep_rewards)):
-            disc = discounted_rewards[episode]
-            logs = ep_log_probs[episode]
 
-            loss = - torch.sum(logs * disc)
-            losses.append(loss)
-        loss = torch.sum(torch.stack(losses)).to(device)
+        # Using the replay buffer, compute gradients and do backwards passes
+        for ep in range(len(ep_rewards)):
+            obs = ep_obs[ep].to(device)
+            ch_a = ep_chosen_actions[ep].to(device)
+            drew = ep_disc_rewards[ep].to(device)
 
-        loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
+            dist = agent.act(obs, add_rand=False)
+            log_prob = dist.log_prob(ch_a)
+            loss = - torch.sum(log_prob * drew)
+            losses.append(loss.item())
 
-        # scaler.scale(loss).backward()
-        # scaler.step(optimizer)
-        # scaler.update()
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
         mean_reward = torch.mean(replay_buffer.rewards).item()
+        mean_discounted = torch.mean(torch.cat(ep_disc_rewards)).item()
         print()
         print("Mean reward", mean_reward)
-        print("Loss", loss.item())
+        print("Mean discounted reward", mean_discounted)
+        print("Loss", np.mean(losses))
+        print("Episode", episode)
     return agent
+
 
 def eval(agent, n_episodes=10):
     agent.eval()
     env = generate_environment(render="human")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    # device = "cpu"
     with torch.no_grad():
         for _ in tqdm(range(n_episodes)):
             agent.reset()
@@ -113,7 +114,7 @@ def eval(agent, n_episodes=10):
             while True:
                 obs = obs_to_tensor(obs).to(device)
                 action = agent.act(obs)
-                chosen_action = action.item()
+                chosen_action = action.sample().item()
                 obs, reward, done, _ = env.step(chosen_action)
                 if done:
                     break
@@ -121,4 +122,8 @@ def eval(agent, n_episodes=10):
 
 if __name__ == "__main__":
     agent = train()
-    # eval(agent)
+    compiled_model = torch.jit.script(agent.model)
+    compiled_model.save("reinforce.pt")
+    input("Waiting for input")
+    eval(agent)
+

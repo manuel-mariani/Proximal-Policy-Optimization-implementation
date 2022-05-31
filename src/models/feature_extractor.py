@@ -13,7 +13,7 @@ class FeatureExtractor(nn.Module):
         # ResNet
         self.cnn = nn.Sequential(
             ResidualBottleneckBlock(3, 8, stride=2),
-            ResidualBottleneckBlock(8, 8, stride=2),
+            ResidualBottleneckBlock(8, 8),
             ResidualBottleneckBlock(8, 16),
             ResidualBottleneckBlock(16, 16),
         )

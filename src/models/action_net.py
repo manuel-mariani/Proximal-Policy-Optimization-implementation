@@ -23,7 +23,7 @@ class ActionNet(nn.Module):
             nn.Linear(32, 32),
             nn.ReLU(inplace=True),
             nn.Linear(32, n_actions),
-            nn.Softmax(dim=0),
+            nn.Softmax(dim=-1),
         )
 
     def forward(self, x):

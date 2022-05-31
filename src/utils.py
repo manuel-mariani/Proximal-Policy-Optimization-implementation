@@ -1,5 +1,6 @@
 import gym
 import gym3
+import numpy as np
 import procgen
 import torch
 from matplotlib import pyplot as plt
@@ -19,13 +20,10 @@ def generate_environment(env_name="coinrun", render=None) -> gym.Env:
     )
 
 
-def generate_vec_environment(
-    n_parallel,
-    env_name="coinrun",
-) -> gym3.Env:
+def generate_vec_environment(n_parallel, env_name="coinrun") -> gym3.Env:
     return procgen.ProcgenGym3Env(
         num=n_parallel,
-        env_name="coinrun",
+        env_name=env_name,
         start_level=0,
         num_levels=0,
         distribution_mode="hard",  # "easy", "hard", "extreme", "memory", "exploration"
@@ -37,7 +35,7 @@ def generate_vec_environment(
 
 def render_buffer(replay_buffer, fps=60):
     """Renders a ReplayBuffer using matplotlib"""
-    if isinstance(replay_buffer, list):
+    if isinstance(replay_buffer, (list, np.array, torch.Tensor)):
         obs_list = replay_buffer
     else:
         obs_list = replay_buffer.curr_state_buffer
@@ -73,3 +71,15 @@ def obs_to_tensor(obs, dtype=None):
     if x.ndim < 4:
         x = torch.unsqueeze(x, 0)
     return x
+
+
+def discount(ep_rewards, gamma):
+    discounted = []
+    for er in ep_rewards:
+        flip_er = torch.flip(er, (0,))
+        dr = [flip_er[0]]
+        for r in flip_er[1:]:
+            dr.append(r + gamma * dr[-1])
+        dr = torch.flip(torch.tensor(dr), (0,))
+        discounted.append(dr)
+    return discounted
