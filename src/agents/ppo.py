@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 from torch import autocast, nn
-from torch.cuda.amp import GradScaler
 from torch.distributions import Categorical
 from torchinfo import summary
 from tqdm.auto import tqdm
@@ -13,29 +12,45 @@ from replay_buffer import ReplayBuffer
 from utils import discount, generate_environment, generate_vec_environment, obs_to_tensor, onehot
 
 
-# ======================================================================
-class ReinforceAgent(Agent):
-    def __init__(self, act_space_size: int, eps=0.2):
+class PPONet(nn.Module):
+    def __init__(self, n_features, downsampling, n_actions):
+        super().__init__()
+        self.feature_extractor = FeatureExtractor(n_features, downsampling)
+        self.action_net = ActionNet(n_features, n_actions)
+        self.value_net = nn.Sequential(
+            nn.Linear(n_features, n_features // 2),
+            nn.LeakyReLU(0.01, inplace=True),
+            nn.Linear(n_features // 2, n_features // 4),
+            nn.LeakyReLU(0.01, inplace=True),
+            nn.Linear(n_features // 4, 1),
+        )
+
+    def forward(self, x):
+        feats = self.feature_extractor(x)
+        actions = self.action_net(feats)
+        values = self.action_net(feats)
+        return actions, values
+
+
+class PPOAgent(Agent):
+    def __init__(self, act_space_size, eps=0.2):
         super().__init__(act_space_size)
         self.is_training = True
         self.eps = eps
-
-        # Initialize the network
-        n_features = 256
-        self.feature_extractor = FeatureExtractor(n_features, downsampling=2)
-        self.action_net = ActionNet(n_features, act_space_size)
-        self.model = nn.Sequential(self.feature_extractor, self.action_net)
+        self.model = PPONet(256, 1, act_space_size)
 
     def act(self, obs: torch.Tensor, add_rand=True):
+        # Forward
         with autocast("cpu" if obs.device == "cpu" else "cuda"):
-            dist = self.model(obs)
-
+            actions, values = self.model(obs)
+        # If evaluating, return just the argmax (one-hotted)
         if not self.is_training:
-            dist = onehot(torch.argmax(dist, dim=-1), dist.size())
-
+            actions = onehot(torch.argmax(actions, dim=-1), actions.size())
+            return Categorical(actions, validate_args=False)
+        # If eps-greedy, return random onehot distribution
         if add_rand and self.rng.uniform() < self.eps:
-            dist = onehot(self.rng.integers(0, self.act_space_size), dist.size())
-        return Categorical(dist, validate_args=False)
+            actions = onehot(self.rng.integers(0, self.act_space_size), actions.size())
+        return Categorical(actions), values
 
     def compile(self, device, sample_input=torch.rand(32, 3, 64, 64)):
         if self.model == torch.jit.ScriptModule:
@@ -60,9 +75,6 @@ class ReinforceAgent(Agent):
     def save(self, path):
         self.model.save(path)
 
-    def reset(self):
-        self.action_net.reset()
-
     def train(self):
         self.is_training = True
         self.model.train()
@@ -73,7 +85,7 @@ class ReinforceAgent(Agent):
 
     @staticmethod
     def load(self, act_space_size: int, path):
-        agent = ReinforceAgent(act_space_size)
+        agent = PPOAgent(act_space_size)
         agent.model = torch.jit.load(path)
 
 
@@ -82,7 +94,7 @@ def train(n_episodes=50, n_parallel=32, buffer_size=1000, batch_size=32):
     print("Initializing")
     venv = generate_vec_environment(n_parallel)
     replay_buffer = ReplayBuffer(buffer_size)
-    agent = ReinforceAgent(15)
+    agent = PPOAgent(15)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     optimizer = torch.optim.RMSprop(params=agent.model.parameters(), lr=5e-4)
@@ -103,7 +115,7 @@ def train(n_episodes=50, n_parallel=32, buffer_size=1000, batch_size=32):
 
         losses = []
         batches = episodes.tensor().batch(batch_size)
-        for obs, action, reward, _, _ in batches:
+        for obs, action, reward, _, values in batches:
             obs = obs.to(device)
             act = action.to(device)
             rew = reward.to(device)

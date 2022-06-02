@@ -18,9 +18,9 @@ class ActionNet(nn.Module):
         self.action_block = nn.Sequential(
             nn.BatchNorm1d(lstm_hidden_size),
             nn.Linear(lstm_hidden_size, 128),
-            nn.ReLU(inplace=True),
+            nn.LeakyReLU(inplace=True),
             nn.Linear(128, 64),
-            nn.ReLU(inplace=True),
+            nn.LeakyReLU(inplace=True),
             nn.Linear(64, n_actions),
             nn.Softmax(dim=-1),
         )

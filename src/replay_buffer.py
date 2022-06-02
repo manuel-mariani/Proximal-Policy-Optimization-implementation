@@ -20,10 +20,15 @@ class Trajectory:
     actions: Iterable[Tensor] | Tensor
     rewards: Iterable[Tensor] | Tensor
     is_first: Iterable[Tensor] | Tensor
+    values: Iterable[Tensor] | Tensor
 
     def map(self, func):
         return dict(
-            obs=func(self.obs), actions=func(self.actions), rewards=func(self.rewards), is_first=func(self.is_first)
+            obs=func(self.obs),
+            actions=func(self.actions),
+            rewards=func(self.rewards),
+            is_first=func(self.is_first),
+            values=self.values,
         )
 
 
@@ -32,16 +37,18 @@ class ListTrajectory(Trajectory):
     actions: List[Tensor]
     rewards: List[Tensor]
     is_first: List[Tensor]
+    values: List[Tensor]
 
-    def append(self, obs, actions, rewards, is_first):
+    def append(self, obs, actions, rewards, is_first, values):
         self.obs.append(obs)
         self.actions.append(actions)
         self.rewards.append(rewards)
         self.is_first.append(is_first)
+        self.values.append(values)
 
     @staticmethod
     def empty() -> "ListTrajectory":
-        return ListTrajectory([], [], [], [])
+        return ListTrajectory([], [], [], [], [])
 
     def tensor(self) -> "TensorTrajectory":
         if isinstance(self.rewards[0], List):
@@ -55,8 +62,14 @@ class ListTrajectory(Trajectory):
         raise NotImplementedError
 
     def __iter__(self):
-        for obs, actions, rewards, is_first in zip(self.obs, self.actions, self.rewards, self.is_first):
-            yield obs, actions, rewards, is_first
+        for obs, actions, rewards, is_first, values in zip(
+            self.obs,
+            self.actions,
+            self.rewards,
+            self.is_first,
+            self.values,
+        ):
+            yield obs, actions, rewards, is_first, values
 
 
 class TensorTrajectory(Trajectory):
@@ -137,8 +150,13 @@ class ReplayBuffer:
                 obs = torch.permute(obs, (0, 3, 1, 2)) / 255
 
                 # Act
-                action_dists = agent.act(obs)
-                chosen_actions = action_dists.sample()
+                agent_output = agent.act(obs)
+                if isinstance(agent_output, tuple):
+                    action_probs, values = agent_output
+                else:
+                    action_probs = agent_output
+                    values = torch.zeros(obs.size(0))
+                chosen_actions = action_probs.sample()
                 venv.act(chosen_actions.cpu().detach().numpy())
 
                 # Remove tensors from GPU (no effect if using cpu)
@@ -148,7 +166,7 @@ class ReplayBuffer:
                 first = torch.from_numpy(first).detach().bool()
 
                 # Number items
-                self.trajectory.append(obs=obs, actions=chosen_actions, rewards=rew, is_first=first)
+                self.trajectory.append(obs=obs, actions=chosen_actions, rewards=rew, is_first=first, values=values)
                 # To tensor
         self.trajectory = self.trajectory.tensor()
         return self.trajectory
