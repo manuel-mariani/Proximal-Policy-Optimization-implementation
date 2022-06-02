@@ -129,9 +129,6 @@ for i, j in m[1:, :].numpy():
 print(res)
 
 # + pycharm={"name": "#%%\n"}
-[][-1] * 0
-
-# + pycharm={"name": "#%%\n"}
 episodes_rewards = res
 discounted_rewards = []
 gamma = 0.99
@@ -157,3 +154,10 @@ for er in episodes_rewards:
 print(episodes_rewards)
 print()
 print(discounted_rewards)
+
+# + pycharm={"name": "#%%\n"}
+torch.flatten(t, 0, 1)
+
+# + pycharm={"name": "#%%\n"}
+a, b, c = {"a": 1, "b": 2, "c": 3}.values()
+print(a, b, c)
