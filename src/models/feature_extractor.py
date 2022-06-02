@@ -15,18 +15,21 @@ class FeatureExtractor(nn.Module):
             ResidualBottleneckBlock(3, 8, stride=2),
             ResidualBottleneckBlock(8, 8),
             ResidualBottleneckBlock(8, 16),
-            ResidualBottleneckBlock(16, 16),
+            ResidualBottleneckBlock(16, 32),
+            ResidualBottleneckBlock(32, 32),
+            ResidualBottleneckBlock(32, 16),
+            nn.BatchNorm2d(16),
         )
 
         # Linear layer
         self.linear = nn.Sequential(
             nn.Flatten(),
             nn.LazyLinear(out_features),
-            nn.ReLU(inplace=True),
+            nn.Sigmoid(),
         )
 
     def forward(self, x):
-        x = F.interpolate(x, scale_factor=1 / self.ds)  # Downscale
+        x = F.interpolate(x, scale_factor=1 / self.ds, mode='nearest')  # Downscale
         x = self.cnn(x)
         x = self.linear(x)
         return x
@@ -56,12 +59,14 @@ class ResidualBottleneckBlock(nn.Module):
 
 
 # ======================================================================
-def conv_bn_block(in_ch, out_ch, kernel_size, stride=1, padding=0, activate=True) -> nn.Module:
+def conv_bn_block(in_ch, out_ch, kernel_size, stride=1, padding=0, activate=True, batch_norm=False) -> nn.Module:
     """Builds a 2D Convolution, followed by BatchNorm and LeakyRelu (optional)"""
-    net = nn.Sequential(
-        nn.Conv2d(in_ch, out_ch, kernel_size, stride, padding),
-        nn.BatchNorm2d(out_ch),
-    )
+    conv2d = nn.Conv2d(in_ch, out_ch, kernel_size, stride, padding)
+    if not activate and not batch_norm:
+        return conv2d
+    net = nn.Sequential(conv2d)
+    if batch_norm:
+        net.append(nn.BatchNorm2d(out_ch))
     if activate:
         net.append(nn.LeakyReLU(0.01, inplace=True))
     return net

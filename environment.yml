@@ -8,6 +8,7 @@ dependencies:
   - python=3.10
   - pytorch
   - torchvision
+  - torchinfo
   - cudatoolkit=11.3
   - jupyterlab
   - gym

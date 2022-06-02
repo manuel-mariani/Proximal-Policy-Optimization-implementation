@@ -72,6 +72,10 @@ def obs_to_tensor(obs, dtype=None):
         x = torch.unsqueeze(x, 0)
     return x
 
+def onehot(val, size):
+    oh = torch.zeros(size)
+    oh[:, val] = 1
+    return oh
 
 def discount(ep_rewards, gamma):
     discounted = []

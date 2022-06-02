@@ -10,13 +10,11 @@ from torch.distributions import Categorical
 
 class Agent(ABC):
     @abstractmethod
-    def __init__(self, obs_space_shape, act_space_size):
+    def __init__(self, act_space_size):
         """
         :param train:
-        :param obs_space_shape:
         :param act_space_size:
         """
-        self.obs_space_shape = obs_space_shape
         self.act_space_size = act_space_size
         self.rng = np.random.default_rng()
 
@@ -35,8 +33,8 @@ class Agent(ABC):
 
 # ======================================================================
 class RandomAgent(Agent):
-    def __init__(self, obs_space_shape: Box, act_space_size: Discrete):
-        super().__init__(obs_space_shape, act_space_size)
+    def __init__(self, act_space_size: Discrete):
+        super().__init__(act_space_size)
 
     def act(self, obs: torch.Tensor) -> Categorical:
         return Categorical(torch.rand(self.act_space_size.n))
