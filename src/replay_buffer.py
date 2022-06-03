@@ -16,11 +16,12 @@ from utils import obs_to_tensor
 
 @dataclass
 class Trajectory:
-    obs: Iterable[Tensor] | Tensor
-    actions: Iterable[Tensor] | Tensor
-    rewards: Iterable[Tensor] | Tensor
-    is_first: Iterable[Tensor] | Tensor
-    values: Iterable[Tensor] | Tensor
+    obs: List[Tensor] | Tensor
+    actions: List[Tensor] | Tensor
+    rewards: List[Tensor] | Tensor
+    is_first: List[Tensor] | Tensor
+    values: List[Tensor] | Tensor
+    probs: List[Tensor] | Tensor
 
     def map(self, func):
         return dict(
@@ -28,27 +29,23 @@ class Trajectory:
             actions=func(self.actions),
             rewards=func(self.rewards),
             is_first=func(self.is_first),
-            values=self.values,
+            values=func(self.values),
+            probs=func(self.probs),
         )
 
 
 class ListTrajectory(Trajectory):
-    obs: List[Tensor]
-    actions: List[Tensor]
-    rewards: List[Tensor]
-    is_first: List[Tensor]
-    values: List[Tensor]
-
-    def append(self, obs, actions, rewards, is_first, values):
+    def append(self, obs, actions, rewards, is_first, values, probs):
         self.obs.append(obs)
         self.actions.append(actions)
         self.rewards.append(rewards)
         self.is_first.append(is_first)
         self.values.append(values)
+        self.probs.append(probs)
 
     @staticmethod
     def empty() -> "ListTrajectory":
-        return ListTrajectory([], [], [], [], [])
+        return ListTrajectory([], [], [], [], [], [])
 
     def tensor(self) -> "TensorTrajectory":
         if isinstance(self.rewards[0], List):
@@ -68,6 +65,7 @@ class ListTrajectory(Trajectory):
             self.rewards,
             self.is_first,
             self.values,
+            self.probs,
         ):
             yield TensorTrajectory(*values)
 
@@ -121,6 +119,7 @@ class ReplayBuffer:
         self.trajectory = ListTrajectory.empty()
 
     def generate_single(self, env: Env, agent: Agent, device, progress_bar=False, enable_grad=False):
+        raise NotImplementedError
         self.reset()
         steps = trange(self.buffer_size) if progress_bar else range(progress_bar)
 
@@ -134,7 +133,7 @@ class ReplayBuffer:
                     action = agent.act(obs)
                     chosen_action = action.sample().item()
                     next_obs, reward, done, _ = env.step(chosen_action)
-                    self.trajectory.append(obs=obs, actions=action, rewards=reward, is_first=is_first)
+                    self.trajectory.append(obs=obs, actions=action, rewards=reward, is_first=is_first, values=None, probs=None)
                     next_obs, is_first = obs, False
                     if done:
                         break
@@ -155,11 +154,12 @@ class ReplayBuffer:
                 # Act
                 agent_output = agent.act(obs)
                 if isinstance(agent_output, tuple):
-                    action_probs, values = agent_output
+                    action_dist, values = agent_output
                 else:
-                    action_probs = agent_output
+                    action_dist = agent_output
                     values = torch.zeros(obs.size(0))
-                chosen_actions = action_probs.sample()
+                chosen_actions = action_dist.sample()
+                probs = action_dist.probs
                 venv.act(chosen_actions.cpu().detach().numpy())
 
                 # Remove tensors from GPU (no effect if using cpu)
@@ -167,9 +167,18 @@ class ReplayBuffer:
                 chosen_actions = chosen_actions.detach().to("cpu")
                 rew = torch.from_numpy(rew).detach()
                 first = torch.from_numpy(first).detach().bool()
+                values = values.detach().to("cpu")
+                probs = probs.detach().to("cpu")
 
                 # Number items
-                self.trajectory.append(obs=obs, actions=chosen_actions, rewards=rew, is_first=first, values=values)
-                # To tensor
+                self.trajectory.append(
+                    obs=obs,
+                    actions=chosen_actions,
+                    rewards=rew,
+                    is_first=first,
+                    values=values,
+                    probs=probs,
+                )
+        # To tensor
         self.trajectory = self.trajectory.tensor()
         return self.trajectory

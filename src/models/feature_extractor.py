@@ -15,9 +15,9 @@ class FeatureExtractor(nn.Module):
             ResidualBottleneckBlock(3, 8, stride=2),
             ResidualBottleneckBlock(8, 8),
             ResidualBottleneckBlock(8, 16),
-            ResidualBottleneckBlock(16, 32),
+            ResidualBottleneckBlock(16, 32, stride=2),
             ResidualBottleneckBlock(32, 32),
-            ResidualBottleneckBlock(32, 16),
+            ResidualBottleneckBlock(32, 16, stride=2),
             nn.BatchNorm2d(16),
         )
 
@@ -42,6 +42,7 @@ class ResidualBottleneckBlock(nn.Module):
 
         self.shortcut = nn.Identity()
         self.block = nn.Sequential(
+            nn.BatchNorm2d(in_ch),
             conv_bn_block(in_ch, out_ch, 1),  # 1x1
             conv_bn_block(out_ch, out_ch, 3, padding=1, stride=stride),  # 3x3
             conv_bn_block(out_ch, out_ch, 1, activate=False),  # 1x1

@@ -8,12 +8,12 @@ from utils import discount, generate_environment, generate_vec_environment, obs_
 
 
 def train(
-    agent: TrainableAgent,
-    n_episodes=50,
-    n_parallel=32,
-    buffer_size=1000,
-    batch_size=32,
-    env_name="coinrun",
+        agent: TrainableAgent,
+        env_name,
+        n_episodes=10,
+        n_parallel=128,
+        buffer_size=512,
+        batch_size=128,
 ):
     # Initialize the environment
     venv = generate_vec_environment(n_parallel, env_name)
@@ -21,7 +21,7 @@ def train(
 
     # Initialize torch stuff
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    optimizer = torch.optim.RAdam(agent.parameters, lr=1e-3, weight_decay=0.01)
+    optimizer = torch.optim.RAdam(agent.parameters, lr=1e-5, weight_decay=0.01)
     agent.compile(device)
     agent.train()
 
@@ -36,14 +36,19 @@ def train(
         mean_discounted = torch.mean(torch.cat(episodes.rewards)).item()
 
         # Do a training step
+        n_losses = 0
+        sum_loss = 0
         losses = []
         batches = episodes.tensor().batch(batch_size)
         for batch in batches:
             loss = agent.loss(batch.to(device))
+            # sum_loss = sum_loss + loss
+            # n_losses += 1
             losses.append(loss.item())
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+
 
         print()
         print("Mean reward", mean_reward)
@@ -53,9 +58,9 @@ def train(
     return agent
 
 
-def evaluate(agent, n_episodes=10):
+def evaluate(agent, env_name, n_episodes=10):
     agent.eval()
-    env = generate_environment(render="human")
+    env = generate_environment(env_name=env_name, render="human")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     with torch.no_grad():
         for _ in trange(n_episodes):
@@ -70,8 +75,8 @@ def evaluate(agent, n_episodes=10):
                     break
 
 
-def train_eval(agent: TrainableAgent, save_path):
-    agent = train(agent)
+def train_eval(agent: TrainableAgent, save_path, env_name="coinrun"):
+    agent = train(agent, env_name=env_name)
     agent.save(save_path)
     input("Waiting for input")
-    evaluate(agent)
+    evaluate(agent, env_name=env_name)
