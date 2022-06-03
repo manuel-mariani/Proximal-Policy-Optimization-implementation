@@ -10,7 +10,7 @@ from agents.agent import Agent, TrainableAgent
 from models.action_net import ActionNet
 from models.feature_extractor import FeatureExtractor
 from replay_buffer import ReplayBuffer, TensorTrajectory
-from trainer import train_eval
+from trainer import evaluate, train_eval
 from utils import discount, generate_environment, generate_vec_environment, obs_to_tensor, onehot
 
 
@@ -60,12 +60,13 @@ class PPOAgent(TrainableAgent):
         # advantage = trajectory.rewards
 
         e = self.clip_eps
-        r = ratio[:, a]
+        # r = ratio[:, a]
+        r = torch.index_select(ratio, dim=1, index=a)
         l_clip = torch.minimum(
             r * advantage,
             torch.clip(r, 1 - e, 1 + e) * advantage,
         )
-        l_vf = 0.1 * mse_loss(state_values, trajectory.rewards, reduction='none')
+        l_vf = 1 * mse_loss(state_values, trajectory.rewards, reduction='none')
         l_s = 0.1 * action_dist.entropy()
         # l_s = 0.1 * torch.clip(action_dist.entropy(), 0, 1000)
         l_clip_s = -torch.sum(l_clip - l_vf + l_s)
@@ -74,3 +75,6 @@ class PPOAgent(TrainableAgent):
 
 if __name__ == "__main__":
     train_eval(PPOAgent(15), "ppo.pt")
+    # agent = PPOAgent(15)
+    # agent.load("ppo-06-03.pt")
+    # evaluate(agent, "coinrun")

@@ -4,15 +4,15 @@ from tqdm.auto import trange
 
 from agents.agent import TrainableAgent
 from replay_buffer import ReplayBuffer
-from utils import discount, generate_environment, generate_vec_environment, obs_to_tensor, standardize
+from utils import discount, generate_environment, generate_vec_environment, obs_to_tensor, reward_shaping, standardize
 
 
 def train(
         agent: TrainableAgent,
         env_name,
-        n_episodes=25,
+        n_episodes=200,
         n_parallel=32,
-        buffer_size=1024,
+        buffer_size=512,
         batch_size=128,
 ):
     # Initialize the environment
@@ -30,15 +30,12 @@ def train(
         agent.reset()
         episodes = replay_buffer.generate_vectorized(venv, agent, device, progress_bar=True).episodic()
 
+        # Shape, Discount and Standardize the rewards
+        episodes.rewards = reward_shaping(episodes.rewards, timeout=buffer_size - 25)
         # (logging)
         reward_sum = torch.sum(torch.cat(episodes.rewards)).item()
-        mean_reward: torch.Tensor = torch.mean(torch.cat(episodes.rewards)).item()
 
-        # Discount the rewards
         episodes.rewards = discount(episodes.rewards, gamma=0.99)
-        mean_discounted = torch.mean(torch.cat(episodes.rewards)).item()
-
-        # Standardize the rewards
         episodes.rewards = standardize(episodes.rewards, eps=0.01)
 
         # Do a training step
@@ -59,8 +56,6 @@ def train(
 
         print()
         print("Reward sum", reward_sum)
-        print("Mean reward", mean_reward)
-        print("Mean discounted reward", mean_discounted)
         print("Loss", np.mean(losses))
         print("Episode", episode)
     return agent
@@ -83,7 +78,7 @@ def evaluate(agent, env_name, n_episodes=10):
                     break
 
 
-def train_eval(agent: TrainableAgent, save_path, env_name="bossfight"):
+def train_eval(agent: TrainableAgent, save_path, env_name="coinrun"):
     agent = train(agent, env_name=env_name)
     agent.save(save_path)
     input("Waiting for input")

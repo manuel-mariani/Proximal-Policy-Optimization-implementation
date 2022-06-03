@@ -83,10 +83,30 @@ class TensorTrajectory(Trajectory):
 
     def episodic(self) -> "ListTrajectory":
         _trajectory = ListTrajectory.empty()
+        self.is_first[0, :] = 1
+
+        for col, is_first in enumerate(self.is_first.T):
+            rows = list(torch.argwhere(is_first)) + [len(is_first)]
+            for row, next_row in zip(rows[:-1], rows[1:]):
+                _trajectory.append(**self.map(lambda x: x[row:next_row, col]))
+
+        # Testing
+        out_lengths = 0
+        for is_f in _trajectory.is_first:
+            assert is_f[0]
+            assert not torch.any(is_f[1:])
+            out_lengths += len(is_f)
+        in_lengths = sum(len(t) for t in self.is_first)
+        assert out_lengths == in_lengths
+        return _trajectory
+
+    def _episodic(self) -> "ListTrajectory":
+        _trajectory = ListTrajectory.empty()
 
         # is_first is a tensor with 1 where a new episode begins
-        is_first = self.is_first.clone().T
-        is_first[:, 0] = 1  # Enforce starting
+        self.is_first[0, :] = 1
+        is_first = self.is_first.T
+
         # Take the indices where episodes begin (tensor of size "n starts" x 2)
         m = torch.argwhere(is_first)
 
@@ -97,16 +117,31 @@ class TensorTrajectory(Trajectory):
 
         # Iterate through the start indices, taking slices
         for row, col in m[1:, :].numpy():
-            # If the current row changes, then append the remaining row
+            # If the current row changes, then take the remaining columns from the previous row.
+            # This is valid because when a row changes we also have col==0 (due to is_first[:, 0] = 1)
             if row != prev_row:
-                row_idx, col_end = prev_row, length
+                assert col == 0, (row - prev_row == 1)
+                take_slice = lambda x: x[prev_col:, prev_row]
+                _trajectory.append(**self.map(take_slice))
+                # row_idx, col_end = prev_row, length
             # Otherwise, append the current window
             else:
-                row_idx, col_end = row, col + 1
-            # Appending and stepping
-            take_slice = lambda x: x[prev_col:col_end, row_idx]
-            _trajectory.append(**self.map(take_slice))
+                take_slice = lambda x: x[prev_col:col, row]
+                _trajectory.append(**self.map(take_slice))
+                # row_idx, col_end = row, col + 1
             prev_row, prev_col = row, col
+            # Appending and stepping
+            # take_slice = lambda x: x[prev_col:col_end, row_idx]
+            # _trajectory.append(**self.map(take_slice))
+
+        # Testing
+        out_lengths = 0
+        for is_f in _trajectory.is_first:
+            assert is_f[0]
+            assert not torch.any(is_f[1:])
+            out_lengths += len(is_f)
+        in_lengths = sum(len(t) for t in self.is_first)
+        assert out_lengths == in_lengths
         return _trajectory
 
 

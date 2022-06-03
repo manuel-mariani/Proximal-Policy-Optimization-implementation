@@ -79,6 +79,20 @@ def onehot(val, size):
     return oh
 
 
+def reward_shaping(ep_rewards, timeout: int, kappa=-1):
+    shaped = []
+    for er in ep_rewards:
+        # Penalization if the episode goes on for too long, without a reward
+        if len(er) > timeout:
+            # er[timeout:] = kappa / (len(er) - timeout)
+            er[-1] = kappa
+        # Penalization if the episode ends without a reward
+        elif er[-1] == 0:
+            er[-1] = kappa
+        shaped.append(er)
+    return shaped
+
+
 def discount(ep_rewards, gamma):
     discounted = []
     for er in ep_rewards:
