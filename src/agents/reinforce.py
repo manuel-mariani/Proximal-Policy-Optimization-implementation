@@ -16,11 +16,8 @@ from utils import discount, generate_environment, generate_vec_environment, obs_
 
 # ======================================================================
 class ReinforceAgent(TrainableAgent):
-    def __init__(self, act_space_size: int, eps=0.2):
-        super().__init__(act_space_size)
-        self.is_training = True
-        self.eps = eps
-
+    def __init__(self, act_space_size: int, epsilon=0.2):
+        super().__init__(act_space_size, epsilon)
         # Initialize the network
         n_features = 256
         self.feature_extractor = FeatureExtractor(n_features, downsampling=2)

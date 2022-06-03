@@ -140,9 +140,11 @@ class ReplayBuffer:
             self.trajectory = self.trajectory.tensor()
         return self.trajectory
 
-    def generate_vectorized(self, venv: gym3.Env, agent: Agent, device, progress_bar=False, enable_grad=False):
+    def generate_vectorized(self, venv: gym3.Env, agent: Agent, device, progress_bar=False, enable_grad=False, sampling_strategy=None):
         self.reset()
         steps = trange(self.buffer_size) if progress_bar else range(progress_bar)
+        sampling_strategy = sampling_strategy if sampling_strategy is not None else lambda x: x.sample()
+
         with torch.set_grad_enabled(enable_grad):
             for _ in steps:
                 rew, obs, first = venv.observe()
@@ -158,7 +160,7 @@ class ReplayBuffer:
                 else:
                     action_dist = agent_output
                     values = torch.zeros(obs.size(0))
-                chosen_actions = action_dist.sample()
+                chosen_actions = agent.sampling_strategy(action_dist)
                 probs = action_dist.probs
                 venv.act(chosen_actions.cpu().detach().numpy())
 

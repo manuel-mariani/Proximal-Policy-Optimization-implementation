@@ -72,10 +72,12 @@ def obs_to_tensor(obs, dtype=None):
         x = torch.unsqueeze(x, 0)
     return x
 
+
 def onehot(val, size):
     oh = torch.zeros(size)
     oh[:, val] = 1
     return oh
+
 
 def discount(ep_rewards, gamma):
     discounted = []
@@ -87,3 +89,13 @@ def discount(ep_rewards, gamma):
         dr = torch.flip(torch.tensor(dr), (0,))
         discounted.append(dr)
     return discounted
+
+
+def standardize(ep_rewards, eps=0.01):
+    standardized = []
+    tensor = torch.cat(ep_rewards)
+    mean = tensor.mean()
+    std = tensor.std() + eps
+    for er in ep_rewards:
+        standardized.append((er - mean) / std)
+    return standardized

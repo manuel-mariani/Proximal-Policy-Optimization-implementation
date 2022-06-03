@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from torch import autocast, nn
 from torch.distributions import Categorical
+from torch.nn.functional import mse_loss
 from torchinfo import summary
 from tqdm.auto import tqdm
 
@@ -22,22 +23,21 @@ class PPONet(nn.Module):
             nn.Linear(n_features, n_features // 4),
             nn.LeakyReLU(0.01, inplace=True),
             nn.Linear(n_features // 4, 1),
+            nn.Tanh()
         )
 
     def forward(self, x):
         feats = self.feature_extractor(x)
         actions = self.action_net(feats)
-        values = self.value_net(feats).flatten()
+        values = self.value_net(feats).flatten() * 2
         return actions, values
 
 
 class PPOAgent(TrainableAgent):
-    def __init__(self, act_space_size, eps=0.2, clip_eps=0.2):
-        super().__init__(act_space_size)
-        self.is_training = True
-        self.eps = eps
+    def __init__(self, act_space_size, epsilon=0.02, clip_eps=0.2):
+        super().__init__(act_space_size, epsilon)
         self.clip_eps = clip_eps
-        self.model = PPONet(64, 2, act_space_size)
+        self.model = PPONet(64, 1, act_space_size)
 
     def act(self, obs: torch.Tensor, add_rand=True):
         # Forward
@@ -55,17 +55,20 @@ class PPOAgent(TrainableAgent):
     def loss(self, trajectory: "TensorTrajectory"):
         action_dist, state_values = self.act(trajectory.obs)
         ratio = action_dist.probs / trajectory.probs
-        a = action_dist.sample()  # or use argmax?
+        a = trajectory.actions
         advantage = trajectory.rewards - state_values
+        # advantage = trajectory.rewards
 
         e = self.clip_eps
         r = ratio[:, a]
-        l_clip = torch.min(
+        l_clip = torch.minimum(
             r * advantage,
             torch.clip(r, 1 - e, 1 + e) * advantage,
         )
+        l_vf = 0.1 * mse_loss(state_values, trajectory.rewards, reduction='none')
         l_s = 0.1 * action_dist.entropy()
-        l_clip_s = - torch.sum(l_clip + l_s)
+        # l_s = 0.1 * torch.clip(action_dist.entropy(), 0, 1000)
+        l_clip_s = -torch.sum(l_clip - l_vf + l_s)
         return l_clip_s
 
 

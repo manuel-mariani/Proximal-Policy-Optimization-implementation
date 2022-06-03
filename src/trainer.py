@@ -4,15 +4,15 @@ from tqdm.auto import trange
 
 from agents.agent import TrainableAgent
 from replay_buffer import ReplayBuffer
-from utils import discount, generate_environment, generate_vec_environment, obs_to_tensor
+from utils import discount, generate_environment, generate_vec_environment, obs_to_tensor, standardize
 
 
 def train(
         agent: TrainableAgent,
         env_name,
-        n_episodes=10,
-        n_parallel=128,
-        buffer_size=512,
+        n_episodes=25,
+        n_parallel=32,
+        buffer_size=1024,
         batch_size=128,
 ):
     # Initialize the environment
@@ -21,7 +21,7 @@ def train(
 
     # Initialize torch stuff
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    optimizer = torch.optim.RAdam(agent.parameters, lr=1e-5, weight_decay=0.01)
+    optimizer = torch.optim.AdamW(agent.parameters, lr=3e-4, weight_decay=0.02, amsgrad=True)
     agent.compile(device)
     agent.train()
 
@@ -30,10 +30,16 @@ def train(
         agent.reset()
         episodes = replay_buffer.generate_vectorized(venv, agent, device, progress_bar=True).episodic()
 
-        # Compute discount rewards
+        # (logging)
+        reward_sum = torch.sum(torch.cat(episodes.rewards)).item()
         mean_reward: torch.Tensor = torch.mean(torch.cat(episodes.rewards)).item()
+
+        # Discount the rewards
         episodes.rewards = discount(episodes.rewards, gamma=0.99)
         mean_discounted = torch.mean(torch.cat(episodes.rewards)).item()
+
+        # Standardize the rewards
+        episodes.rewards = standardize(episodes.rewards, eps=0.01)
 
         # Do a training step
         n_losses = 0
@@ -47,10 +53,12 @@ def train(
             losses.append(loss.item())
             optimizer.zero_grad()
             loss.backward()
+            # torch.nn.utils.clip_grad_norm_(agent.parameters, 5)
             optimizer.step()
 
 
         print()
+        print("Reward sum", reward_sum)
         print("Mean reward", mean_reward)
         print("Mean discounted reward", mean_discounted)
         print("Loss", np.mean(losses))
@@ -75,7 +83,7 @@ def evaluate(agent, env_name, n_episodes=10):
                     break
 
 
-def train_eval(agent: TrainableAgent, save_path, env_name="coinrun"):
+def train_eval(agent: TrainableAgent, save_path, env_name="bossfight"):
     agent = train(agent, env_name=env_name)
     agent.save(save_path)
     input("Waiting for input")
