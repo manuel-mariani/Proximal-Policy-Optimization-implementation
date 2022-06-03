@@ -61,15 +61,15 @@ class ListTrajectory(Trajectory):
             return TensorTrajectory(**self.map(lambda x: torch.cat(x)))
         raise NotImplementedError
 
-    def __iter__(self):
-        for obs, actions, rewards, is_first, values in zip(
+    def __iter__(self) -> "TensorTrajectory":
+        for values in zip(
             self.obs,
             self.actions,
             self.rewards,
             self.is_first,
             self.values,
         ):
-            yield obs, actions, rewards, is_first, values
+            yield TensorTrajectory(*values)
 
 
 class TensorTrajectory(Trajectory):
@@ -79,6 +79,9 @@ class TensorTrajectory(Trajectory):
         else:
             func = lambda x: list(x.split(batch_size))
         return ListTrajectory(**self.map(func))
+
+    def to(self, device):
+        return TensorTrajectory(**self.map(lambda x: x.to(device)))
 
     def episodic(self) -> "ListTrajectory":
         _trajectory = ListTrajectory.empty()
