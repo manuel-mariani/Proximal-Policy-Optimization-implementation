@@ -1,3 +1,5 @@
+import random
+
 import gym
 import gym3
 import numpy as np
@@ -82,13 +84,17 @@ def onehot(val, size):
 def reward_shaping(ep_rewards, timeout: int, kappa=-1):
     shaped = []
     for er in ep_rewards:
-        # Penalization if the episode goes on for too long, without a reward
+        # Penalization if the episode goes on for too long
         if len(er) > timeout:
             # er[timeout:] = kappa / (len(er) - timeout)
             er[-1] = kappa
         # Penalization if the episode ends without a reward
         elif er[-1] == 0:
             er[-1] = kappa
+        # Scale the reward by time elapsed (inverse proportional)
+        # else:
+        #     # er[-1] = er[-1] * (timeout / len(er)) * (-kappa)
+        #     er[-1] = (timeout / len(er)) * (-kappa)
         shaped.append(er)
     return shaped
 
@@ -108,8 +114,14 @@ def discount(ep_rewards, gamma):
 def standardize(ep_rewards, eps=0.01):
     standardized = []
     tensor = torch.cat(ep_rewards)
-    mean = tensor.mean()
+    # mean = tensor.mean()
+    mean = 0
     std = tensor.std() + eps
     for er in ep_rewards:
         standardized.append((er - mean) / std)
     return standardized
+
+def set_seeds():
+    torch.manual_seed(42)
+    random.seed(42)
+    np.random.seed(42)

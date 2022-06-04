@@ -11,7 +11,7 @@ class Agent(ABC):
     @abstractmethod
     def __init__(self, act_space_size):
         self.act_space_size = act_space_size
-        self.rng = np.random.default_rng()
+        self.rng = np.random.default_rng(seed=42)
 
     @abstractmethod
     def act(self, obs: torch.Tensor) -> Categorical:
@@ -91,11 +91,13 @@ class TrainableAgent(Agent, ABC):
     def sampling_strategy(self, dist: Categorical):
         if self.is_training:
             return self._training_sampling(dist)
-        return torch.argmax(dist.probs)
+        return torch.argmax(dist.probs, dim=-1)
 
     def _training_sampling(self, dist: Categorical):
         # Epsilon greedy
         if self.rng.uniform() < self.epsilon:
-            return torch.randint(low=0, high=self.act_space_size, size=(dist.probs.size(0), ))
-        return dist.sample()
+            # return Categorical(1 - dist.probs).sample()
+            return dist.sample()
+            # return torch.randint(low=0, high=self.act_space_size, size=(dist.probs.size(0), ))
+        return torch.argmax(dist.probs, dim=-1)
 

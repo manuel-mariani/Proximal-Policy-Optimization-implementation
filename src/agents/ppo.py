@@ -34,7 +34,7 @@ class PPONet(nn.Module):
 
 
 class PPOAgent(TrainableAgent):
-    def __init__(self, act_space_size, epsilon=0.02, clip_eps=0.2):
+    def __init__(self, act_space_size, epsilon=0.5, clip_eps=0.2):
         super().__init__(act_space_size, epsilon)
         self.clip_eps = clip_eps
         self.model = PPONet(64, 1, act_space_size)
@@ -67,7 +67,8 @@ class PPOAgent(TrainableAgent):
             torch.clip(r, 1 - e, 1 + e) * advantage,
         )
         l_vf = 1 * mse_loss(state_values, trajectory.rewards, reduction='none')
-        l_s = 0.1 * action_dist.entropy()
+        l_s = 0
+        # l_s = 0.1 * action_dist.entropy()
         # l_s = 0.1 * torch.clip(action_dist.entropy(), 0, 1000)
         l_clip_s = -torch.sum(l_clip - l_vf + l_s)
         return l_clip_s
