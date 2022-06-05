@@ -18,7 +18,7 @@ class Agent(ABC):
         pass
 
     def reset(self):
-        pass
+        return self
 
     def _one_hot(self, action_idx: int) -> Categorical:
         dist = torch.zeros(self.act_space_size)
@@ -59,10 +59,10 @@ class TrainableAgent(Agent, ABC):
             return
         self.model = self.model.to(device)
         self.act(sample_input.to(device))
-        self.model = torch.jit.script(self.model)
         s = summary(
             self.model,
-            input_size=sample_input.size(),
+            # input_size=sample_input.size(),
+            input_data=sample_input,
             mode="train",
             depth=7,
             col_names=[
@@ -72,15 +72,19 @@ class TrainableAgent(Agent, ABC):
                 "kernel_size",
             ],
         )
-        print(s)
+        self.model = torch.jit.script(self.model)
+        # print(s)
+        return self
 
     def train(self):
         self.is_training = True
         self.model.train()
+        return self
 
     def eval(self):
         self.is_training = False
         self.model.eval()
+        return self
 
     def save(self, path):
         self.model.save(path)
@@ -97,7 +101,8 @@ class TrainableAgent(Agent, ABC):
         # Epsilon greedy
         if self.rng.uniform() < self.epsilon:
             # return Categorical(1 - dist.probs).sample()
-            return dist.sample()
-            # return torch.randint(low=0, high=self.act_space_size, size=(dist.probs.size(0), ))
-        return torch.argmax(dist.probs, dim=-1)
+            # return dist.sample()
+            return torch.randint(low=0, high=self.act_space_size, size=(dist.probs.size(0), ))
+        return dist.sample()
+        # return torch.argmax(dist.probs, dim=-1)
 

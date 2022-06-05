@@ -11,7 +11,6 @@ from torch.distributions import Categorical, Distribution
 from tqdm.auto import trange
 
 from src.agents.agent import Agent
-from utils import obs_to_tensor
 
 
 @dataclass
@@ -100,49 +99,13 @@ class TensorTrajectory(Trajectory):
         assert out_lengths == in_lengths
         return _trajectory
 
-    def _episodic(self) -> "ListTrajectory":
-        _trajectory = ListTrajectory.empty()
-
-        # is_first is a tensor with 1 where a new episode begins
-        self.is_first[0, :] = 1
-        is_first = self.is_first.T
-
-        # Take the indices where episodes begin (tensor of size "n starts" x 2)
-        m = torch.argwhere(is_first)
-
-        # Take the first episode start
-        prev_row = m[0, 0].item()
-        prev_col = m[0, 1].item()
-        length = is_first.size(1)
-
-        # Iterate through the start indices, taking slices
-        for row, col in m[1:, :].numpy():
-            # If the current row changes, then take the remaining columns from the previous row.
-            # This is valid because when a row changes we also have col==0 (due to is_first[:, 0] = 1)
-            if row != prev_row:
-                assert col == 0, (row - prev_row == 1)
-                take_slice = lambda x: x[prev_col:, prev_row]
-                _trajectory.append(**self.map(take_slice))
-                # row_idx, col_end = prev_row, length
-            # Otherwise, append the current window
-            else:
-                take_slice = lambda x: x[prev_col:col, row]
-                _trajectory.append(**self.map(take_slice))
-                # row_idx, col_end = row, col + 1
-            prev_row, prev_col = row, col
-            # Appending and stepping
-            # take_slice = lambda x: x[prev_col:col_end, row_idx]
-            # _trajectory.append(**self.map(take_slice))
-
-        # Testing
-        out_lengths = 0
-        for is_f in _trajectory.is_first:
-            assert is_f[0]
-            assert not torch.any(is_f[1:])
-            out_lengths += len(is_f)
-        in_lengths = sum(len(t) for t in self.is_first)
-        assert out_lengths == in_lengths
-        return _trajectory
+    def shuffle(self):
+        if self.actions.ndim == 1:
+            t = self
+        else:
+            t = TensorTrajectory(**self.map(lambda x: torch.flatten(x, 0, 1)))
+        indices = torch.randperm(len(t.actions))
+        return TensorTrajectory(**t.map(lambda x: x[indices]))
 
 
 class ReplayBuffer:
@@ -164,7 +127,7 @@ class ReplayBuffer:
                 obs = env.reset()
                 is_first = True
                 while True:
-                    obs = obs_to_tensor(obs).to(device)
+                    # obs = obs_to_tensor(obs).to(device)
                     action = agent.act(obs)
                     chosen_action = action.sample().item()
                     next_obs, reward, done, _ = env.step(chosen_action)
@@ -175,9 +138,9 @@ class ReplayBuffer:
             self.trajectory = self.trajectory.tensor()
         return self.trajectory
 
-    def generate_vectorized(self, venv: gym3.Env, agent: Agent, device, progress_bar=False, enable_grad=False, sampling_strategy=None):
+    def generate_vectorized(self, venv, agent: Agent, device, progress_bar=False, enable_grad=False, sampling_strategy=None):
         self.reset()
-        steps = trange(self.buffer_size) if progress_bar else range(progress_bar)
+        steps = trange(self.buffer_size) if progress_bar else range(self.buffer_size)
         sampling_strategy = sampling_strategy if sampling_strategy is not None else lambda x: x.sample()
 
         with torch.set_grad_enabled(enable_grad):

@@ -8,40 +8,18 @@ import torch
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-
-def generate_environment(env_name="coinrun", render=None) -> gym.Env:
-    return gym.make(
-        f"procgen:procgen-{env_name}-v0",
-        render=render,
-        start_level=0,
-        num_levels=0,
-        distribution_mode="hard",  # "easy", "hard", "extreme", "memory", "exploration"
-        restrict_themes=True,
-        use_backgrounds=False,
-        use_monochrome_assets=False,
-    )
+from replay_buffer import ListTrajectory
 
 
-def generate_vec_environment(n_parallel, env_name="coinrun") -> gym3.Env:
-    return procgen.ProcgenGym3Env(
-        num=n_parallel,
-        env_name=env_name,
-        start_level=0,
-        num_levels=0,
-        distribution_mode="hard",  # "easy", "hard", "extreme", "memory", "exploration"
-        restrict_themes=True,
-        use_backgrounds=False,
-        use_monochrome_assets=False,
-    )
+def render_trajectory(trajectory: ListTrajectory, fps=60, max_length=-1):
+    obs = torch.cat(trajectory.obs)
+    obs = torch.permute(obs, (0, 2, 3, 1)).cpu().numpy()
+    ani = render_np(obs[:max_length])
 
 
-def render_buffer(replay_buffer, fps=60):
+def render_np(obs, fps=60):
     """Renders a ReplayBuffer using matplotlib"""
-    if isinstance(replay_buffer, (list, np.array, torch.Tensor)):
-        obs_list = replay_buffer
-    else:
-        obs_list = replay_buffer.curr_state_buffer
-    it = iter(obs_list)
+    it = iter(obs)
     fig = plt.figure()
     im = plt.imshow(next(it))
 
@@ -49,7 +27,7 @@ def render_buffer(replay_buffer, fps=60):
         im.set_array(next(it))
         return [im]
 
-    ani = FuncAnimation(fig, update, blit=True, frames=len(obs_list), interval=1000 // fps, repeat=False)
+    ani = FuncAnimation(fig, update, blit=True, frames=len(obs), interval=1000 // fps, repeat=False)
     plt.show()
     return ani
 
@@ -82,6 +60,7 @@ def onehot(val, size):
 
 
 def reward_shaping(ep_rewards, timeout: int, kappa=-1):
+    # return ep_rewards
     shaped = []
     for er in ep_rewards:
         # Penalization if the episode goes on for too long
@@ -91,6 +70,8 @@ def reward_shaping(ep_rewards, timeout: int, kappa=-1):
         # Penalization if the episode ends without a reward
         elif er[-1] == 0:
             er[-1] = kappa
+        # else:
+        #     er[-1] = -kappa
         # Scale the reward by time elapsed (inverse proportional)
         # else:
         #     # er[-1] = er[-1] * (timeout / len(er)) * (-kappa)
@@ -111,15 +92,27 @@ def discount(ep_rewards, gamma):
     return discounted
 
 
-def standardize(ep_rewards, eps=0.01):
+def _standardize(ep_rewards, eps=0.01):
     standardized = []
     tensor = torch.cat(ep_rewards)
-    # mean = tensor.mean()
-    mean = 0
+    mean = tensor.mean()
+    # mean = 0
     std = tensor.std() + eps
     for er in ep_rewards:
         standardized.append((er - mean) / std)
     return standardized
+
+
+def standardize(ep_rewards, eps=0.01):
+    standardized = []
+    tensor = torch.cat(ep_rewards)
+    m = tensor.abs().max()
+    if m == 0:
+        return ep_rewards
+    for er in ep_rewards:
+        standardized.append(er / m)
+    return standardized
+
 
 def set_seeds():
     torch.manual_seed(42)

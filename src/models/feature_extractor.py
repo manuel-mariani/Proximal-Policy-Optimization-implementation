@@ -12,24 +12,29 @@ class FeatureExtractor(nn.Module):
 
         # ResNet
         self.cnn = nn.Sequential(
-            ResidualBottleneckBlock(3, 8, stride=2),
-            ResidualBottleneckBlock(8, 8),
-            ResidualBottleneckBlock(8, 16),
-            ResidualBottleneckBlock(16, 32, stride=2),
+            ResidualBottleneckBlock(3, 32),
             ResidualBottleneckBlock(32, 32),
-            ResidualBottleneckBlock(32, 16, stride=2),
-            nn.BatchNorm2d(16),
+            nn.MaxPool2d(3, 2),
+            nn.BatchNorm2d(32),
+            ResidualBottleneckBlock(32, 32),
+            ResidualBottleneckBlock(32, 32),
+            nn.MaxPool2d(3, 2),
+            nn.BatchNorm2d(32),
+            ResidualBottleneckBlock(32, 8),
+            nn.MaxPool2d(3, 2),
+            nn.BatchNorm2d(8),
         )
 
         # Linear layer
         self.linear = nn.Sequential(
             nn.Flatten(),
             nn.LazyLinear(out_features),
-            nn.Sigmoid(),
+            nn.Tanh(),
         )
 
     def forward(self, x):
         x = F.interpolate(x, scale_factor=1 / self.ds, mode='nearest')  # Downscale
+        x = x / x.max()
         x = self.cnn(x)
         x = self.linear(x)
         return x
