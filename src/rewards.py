@@ -15,9 +15,12 @@ def standardize(tensors: List[Tensor], eps=1e-5):
 def shape_rewards(episodes: ListTrajectory):
     shaped = []
     for er, act in zip(episodes.rewards, episodes.actions):
-        # If reward is positive, the episode is successful so add a great reward
+        # If last reward is positive, the episode is successful so add a great reward
+        # otherwise add a penalty
         if er[-1] > 1:
             er[-1] = 50
+        else:
+            er[-1] = -10
         # Decrease all rewards ∀ time steps, encouraging speed
         er = er - 1
         # If agent goes right, increase reward

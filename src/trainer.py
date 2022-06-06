@@ -31,7 +31,7 @@ def train(
         # Generate the episodes
         episodes = venv(agent, device, n_steps=buffer_size, use_tqdm=True)
         # render_trajectory(episodes)
-        # validate(agent, val_venv, device, buffer_size)
+        validate(agent, val_venv, device, buffer_size)
 
         # Shape, Discount and Standardize the rewards
         # episodes.rewards = reward_shaping(episodes.rewards, timeout=buffer_size - 25)

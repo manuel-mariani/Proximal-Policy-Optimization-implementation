@@ -95,7 +95,7 @@ class TrainableAgent(Agent, ABC):
     def sampling_strategy(self, dist: Categorical):
         if self.is_training:
             return self._training_sampling(dist)
-        return torch.argmax(dist.probs, dim=-1)
+        return dist.sample()
 
     def _training_sampling(self, dist: Categorical):
         # Epsilon greedy
