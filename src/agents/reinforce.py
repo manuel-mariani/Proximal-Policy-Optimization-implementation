@@ -5,7 +5,7 @@ from agents.agent import TrainableAgent
 from agents.ppo import PPONet
 from replay_buffer import TensorTrajectory
 
-# ======================================================================
+
 class ReinforceAgent(TrainableAgent):
     def __init__(self, act_space_size: int, epsilon=0.2):
         super().__init__(act_space_size, epsilon)

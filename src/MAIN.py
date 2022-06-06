@@ -1,15 +1,20 @@
+import torch
+
 from agents.ppo import PPOAgent
 from agents.reinforce import ReinforceAgent
-from trainer import train
+from environment import CoinRunEnv
+from trainer import train, validate
 
 # ======================================================================
 #                               CONSTANTS
 # ======================================================================
+from utils import render_trajectory
 
 AGENT = "ppo"  # "ppo" or "reinforce"
 TRAIN = True  # If to run training or just use trained model to display some output. TODO
-AUTOSAVE_MODEL = True
 LOGGING = True
+AUTOSAVE_MODEL = True
+MODEL_LOAD_PATH = "../trained_models/PPOAgent-0606-1639.pt"
 
 # Discounted returns parameters
 GAMMA = 0.99
@@ -41,14 +46,22 @@ def main():
     else:
         raise Exception(f"Agent {AGENT} not found. Valid options: 'PPO', 'REINFORCE'")
 
-    # Check training
+    # Training
     if TRAIN:
         train(agent, **train_kwargs)
         save = True if AUTOSAVE_MODEL else input("Save model? [Y/n]").strip() != "n"
         if save:
             agent.save()
+    # Evaluation
     else:
-        raise NotImplementedError
+        agent.load(MODEL_LOAD_PATH)
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        venv = CoinRunEnv(N_PARALLEL_VALID, seed=123)
+        episodes = venv(agent, device, n_steps=BUFFER_SIZE, use_tqdm=True)
+        render_trajectory(episodes)
+
+
+
 
 
 train_kwargs = dict(

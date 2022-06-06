@@ -25,13 +25,13 @@ def generate_environment(env_name="coinrun", render=None) -> gym.Env:
     )
 
 
-def generate_vec_environment(n_parallel, env_name="coinrun") -> gym3.Env:
+def generate_vec_environment(n_parallel, env_name="coinrun", seed=42) -> gym3.Env:
     return procgen.ProcgenGym3Env(
         num=n_parallel,
         env_name=env_name,
         start_level=0,
         num_levels=0,
-        rand_seed=42,
+        rand_seed=seed,
         distribution_mode="easy",  # "easy", "hard", "extreme", "memory", "exploration"
         restrict_themes=True,
         use_backgrounds=False,
@@ -40,9 +40,9 @@ def generate_vec_environment(n_parallel, env_name="coinrun") -> gym3.Env:
 
 
 class CoinRunEnv:
-    def __init__(self, n_parallel, render=None):
+    def __init__(self, n_parallel, render=None, seed=42):
         self.action_space = Discrete(4)
-        self.env = generate_vec_environment(n_parallel, env_name="coinrun")
+        self.env = generate_vec_environment(n_parallel, env_name="coinrun", seed=seed)
 
         self.action_mapping = {
             0: 1,  # 0 -> LEFT
