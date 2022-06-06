@@ -5,7 +5,6 @@ from torch.nn.functional import mse_loss
 
 from agents.agent import TrainableAgent
 from replay_buffer import TensorTrajectory
-from trainer import train_eval
 
 
 class PPONet(nn.Module):

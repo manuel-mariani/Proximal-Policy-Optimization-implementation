@@ -1,9 +1,10 @@
-# ======================================================================
-#                               CONSTANTS
-# ======================================================================
 from agents.ppo import PPOAgent
 from agents.reinforce import ReinforceAgent
 from trainer import train
+
+# ======================================================================
+#                               CONSTANTS
+# ======================================================================
 
 AGENT = "ppo"  # "ppo" or "reinforce"
 TRAIN = True  # If to run training or just use trained model to display some output. TODO
@@ -27,19 +28,9 @@ EPSILON = 0.05  # Eps-greedy
 # PPO Specific
 PPO_CLIP_EPS = 0.25  # PPO clipping epsilon
 
+
 # ======================================================================
 
-train_kwargs = dict(
-    n_episodes=N_EPISODES,
-    n_parallel=N_PARALLEL_TRAIN,
-    validation_n_parallel=N_PARALLEL_VALID,
-    buffer_size=BUFFER_SIZE,
-    batch_size=BATCH_SIZE,
-    epochs_per_episode=EPOCHS_PER_EPISODE,
-    lr=LR,
-    gamma=GAMMA,
-    _lambda=LAMBDA,
-)
 
 def main():
     # Set agent
@@ -59,6 +50,18 @@ def main():
     else:
         raise NotImplementedError
 
+
+train_kwargs = dict(
+    n_episodes=N_EPISODES,
+    n_parallel=N_PARALLEL_TRAIN,
+    validation_n_parallel=N_PARALLEL_VALID,
+    buffer_size=BUFFER_SIZE,
+    batch_size=BATCH_SIZE,
+    epochs_per_episode=EPOCHS_PER_EPISODE,
+    lr=LR,
+    gamma=GAMMA,
+    _lambda=LAMBDA,
+)
 
 if __name__ == "__main__":
     main()

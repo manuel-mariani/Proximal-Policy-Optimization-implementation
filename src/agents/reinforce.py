@@ -4,8 +4,6 @@ from torch.distributions import Categorical
 from agents.agent import TrainableAgent
 from agents.ppo import PPONet
 from replay_buffer import TensorTrajectory
-from trainer import train_eval
-
 
 # ======================================================================
 class ReinforceAgent(TrainableAgent):
