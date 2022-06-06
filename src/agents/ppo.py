@@ -11,14 +11,6 @@ from trainer import train_eval
 class PPONet(nn.Module):
     def __init__(self, n_features, downsampling, n_actions):
         super().__init__()
-        # self.feature_extractor = FeatureExtractor(n_features, downsampling)
-        # self.action_net = ActionNet(n_features, n_actions)
-        # self.value_net = nn.Sequential(
-        #     nn.Linear(n_features, n_features // 4),
-        #     nn.LeakyReLU(0.01, inplace=True),
-        #     nn.Linear(n_features // 4, 1),
-        #     nn.Tanh()
-        # )
         self.feature_extractor = nn.Sequential(
             nn.Conv2d(3, 16, kernel_size=8, stride=4),
             nn.LeakyReLU(0.01),
@@ -52,8 +44,6 @@ class PPOAgent(TrainableAgent):
         self.model = PPONet(128, 1, act_space_size)
 
     def act(self, obs: torch.Tensor, add_rand=True):
-        # Forward
-        # with autocast("cpu" if obs.device == "cpu" else "cuda"):
         actions, state_values = self.model(obs)
         return Categorical(probs=actions, validate_args=True), state_values
 
@@ -64,37 +54,20 @@ class PPOAgent(TrainableAgent):
 
     def loss(self, trajectory: "TensorTrajectory"):
         action_dist, state_values = self.act(trajectory.obs)
-        a = trajectory.actions
-        # ratio = action_dist.probs / trajectory.probs
-        ratio = action_dist.probs[:, a] / trajectory.probs[:, a]
-        advantage = trajectory.returns - state_values
-        # advantage = trajectory.returns - trajectory.values
-        # advantage = trajectory.rewards
-        # advantage = trajectory.advantages
-
-        # r = ratio[:, a]
-        # r = torch.index_select(ratio, dim=1, index=a)
-        r = ratio
         e = self.clip_eps
+        a = trajectory.actions
+        r = action_dist.probs[:, a] / trajectory.probs[:, a]
+        advantage = trajectory.returns - state_values
+
         l_clip = torch.minimum(
             r * advantage,
             torch.clip(r, 1 - e, 1 + e) * advantage,
         )
         l_vf = mse_loss(state_values, trajectory.returns, reduction='none') * 0.5
-        # l_vf = torch.clip(l_vf, 0, 2)
-        # l_vf = 0
-        # l_s = 0
         l_s = action_dist.entropy() * 0.01
-        # l_s = 0.1 * torch.clip(action_dist.entropy(), 0, 1000)
-        # print("     L_clip", -l_clip.sum().item())
-        # print("     L_s", l_vf.sum().item())
-        # print("     L_vf", l_vf.mean().item())
         l_clip_s = - (l_clip - l_vf + l_s).sum()
         return l_clip_s
 
 
 if __name__ == "__main__":
     train_eval(PPOAgent(4), "ppo.pt")
-    # agent = PPOAgent(15)
-    # agent.load("ppo-06-03.pt")
-    # evaluate(agent, "coinrun")
