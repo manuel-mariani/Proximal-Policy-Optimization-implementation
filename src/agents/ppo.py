@@ -38,7 +38,7 @@ class PPONet(nn.Module):
         self.action_net = nn.Linear(n_features, n_actions)
         self.value_net = nn.Sequential(
             nn.Linear(n_features, 1),
-            nn.Hardsigmoid(),
+            nn.Tanh(),
         )
 
         self.action_net.weight = torch.nn.Parameter(self.action_net.weight / 100)
@@ -51,10 +51,10 @@ class PPONet(nn.Module):
 
 
 class PPOAgent(TrainableAgent):
-    def __init__(self, act_space_size, epsilon=0.1, clip_eps=0.20):
+    def __init__(self, act_space_size, epsilon=0.05, clip_eps=0.25):
         super().__init__(act_space_size, epsilon)
         self.clip_eps = clip_eps
-        self.model = PPONet(32, 1, act_space_size)
+        self.model = PPONet(128, 1, act_space_size)
 
     def act(self, obs: torch.Tensor, add_rand=True):
         # Forward
@@ -63,32 +63,36 @@ class PPOAgent(TrainableAgent):
         return Categorical(probs=actions, validate_args=True), state_values
 
     def _training_sampling(self, dist: Categorical):
+        if self.rng.uniform() < self.epsilon:
+            return torch.randint(low=0, high=self.act_space_size, size=(dist.probs.size(0),))
         return dist.sample()
 
     def loss(self, trajectory: "TensorTrajectory"):
         action_dist, state_values = self.act(trajectory.obs)
         ratio = action_dist.probs / trajectory.probs
         a = trajectory.actions
-        # advantage = trajectory.rewards - state_values
-        advantage = trajectory.rewards
+        # advantage = trajectory.returns
+        # advantage = trajectory.rewards
+        advantage = trajectory.advantages
 
-        e = self.clip_eps
         # r = ratio[:, a]
         # r = torch.index_select(ratio, dim=1, index=a)
         r = ratio[:, a]
+        e = self.clip_eps
         l_clip = torch.minimum(
             r * advantage,
             torch.clip(r, 1 - e, 1 + e) * advantage,
         )
-        l_vf = 0.1 * mse_loss(state_values, trajectory.rewards, reduction='none')
+        l_vf = mse_loss(state_values, trajectory.returns, reduction='none') * 0.5
+        # l_vf = torch.clip(l_vf, 0, 2)
         # l_vf = 0
-        l_s = 0
-        # l_s = 0.0001 * action_dist.entropy()
+        # l_s = 0
+        l_s = action_dist.entropy() * 0.01
         # l_s = 0.1 * torch.clip(action_dist.entropy(), 0, 1000)
         # print("     L_clip", -l_clip.sum().item())
         # print("     L_s", l_vf.sum().item())
-        # print("     L_vf", l_vf.sum().item())
-        l_clip_s = - (l_clip - l_vf + l_s).mean()
+        # print("     L_vf", l_vf.mean().item())
+        l_clip_s = - (l_clip - l_vf + l_s).sum()
         return l_clip_s
 
 

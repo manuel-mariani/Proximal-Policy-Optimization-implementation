@@ -1,4 +1,5 @@
 import random
+from typing import Any, List
 
 import gym
 import gym3
@@ -18,7 +19,7 @@ def render_trajectory(trajectory: ListTrajectory, fps=60, max_length=-1):
 
 
 def render_np(obs, fps=60):
-    """Renders a ReplayBuffer using matplotlib"""
+    """Renders a numpy trajectory using matplotlib"""
     it = iter(obs)
     fig = plt.figure()
     im = plt.imshow(next(it))
@@ -42,23 +43,6 @@ def test_net(net: torch.nn.Module, input_size, output_size=None):
     print("✅ Passed")
 
 
-def obs_to_tensor(obs, dtype=None):
-    if isinstance(obs, list):
-        return torch.stack([obs_to_tensor(x) for x in obs])
-    x = torch.tensor(obs, dtype=dtype)
-    x = torch.permute(x, (2, 0, 1))
-    x = x / 255
-    if x.ndim < 4:
-        x = torch.unsqueeze(x, 0)
-    return x
-
-
-def onehot(val, size):
-    oh = torch.zeros(size)
-    oh[:, val] = 1
-    return oh
-
-
 def reward_shaping(ep_rewards, timeout: int, kappa=-1):
     # return ep_rewards
     shaped = []
@@ -80,6 +64,26 @@ def reward_shaping(ep_rewards, timeout: int, kappa=-1):
     return shaped
 
 
+def gae(episodes_trajectory: ListTrajectory, gamma, _lambda):
+    advantages = []
+    for episode in episodes_trajectory:
+        r_flip = torch.flip(episode.rewards, (0,))
+        v_flip = torch.flip(episode.values, (0,))
+
+        v_prev = v_flip[0]
+        adv = [r_flip[0] - v_flip[0]]
+
+        for r, v in zip(r_flip[1:], v_flip[1:]):
+            delta = r - v + gamma * v_prev  # δₜ = rₜ + γ V(sₜ₊₁) - V(s)
+            a = delta + gamma * _lambda * adv[-1]  # Aₜ = δₜ + λγ Aₜ₊₁
+            adv.append(r - v + gamma * adv[-1])
+            v_prev = v
+
+        adv = torch.flip(torch.tensor(adv), (0,))
+        advantages.append(adv)
+    return advantages
+
+
 def discount(ep_rewards, gamma):
     discounted = []
     for er in ep_rewards:
@@ -92,7 +96,7 @@ def discount(ep_rewards, gamma):
     return discounted
 
 
-def _standardize(ep_rewards, eps=0.01):
+def standardize(ep_rewards, eps=0.01):
     standardized = []
     tensor = torch.cat(ep_rewards)
     mean = tensor.mean()
@@ -103,7 +107,7 @@ def _standardize(ep_rewards, eps=0.01):
     return standardized
 
 
-def standardize(ep_rewards, eps=0.01):
+def _standardize(ep_rewards, eps=0.01):
     standardized = []
     tensor = torch.cat(ep_rewards)
     m = tensor.abs().max()

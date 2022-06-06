@@ -21,6 +21,8 @@ class Trajectory:
     is_first: List[Tensor] | Tensor
     values: List[Tensor] | Tensor
     probs: List[Tensor] | Tensor
+    advantages: List[Tensor] | Tensor
+    returns: List[Tensor] | Tensor
 
     def map(self, func):
         return dict(
@@ -30,21 +32,28 @@ class Trajectory:
             is_first=func(self.is_first),
             values=func(self.values),
             probs=func(self.probs),
+            advantages=func(self.advantages),
+            returns=func(self.returns),
         )
 
 
 class ListTrajectory(Trajectory):
-    def append(self, obs, actions, rewards, is_first, values, probs):
+    def append(self, obs, actions, rewards, is_first, probs, values=None, advantages=None, returns=None):
         self.obs.append(obs)
         self.actions.append(actions)
         self.rewards.append(rewards)
         self.is_first.append(is_first)
-        self.values.append(values)
         self.probs.append(probs)
+        values = values if values is not None else torch.zeros_like(rewards)
+        self.values.append(values)
+        advantages = advantages if advantages is not None else torch.zeros_like(rewards)
+        self.advantages.append(advantages)
+        returns = returns if returns is not None else torch.zeros_like(rewards)
+        self.returns.append(returns)
 
     @staticmethod
     def empty() -> "ListTrajectory":
-        return ListTrajectory([], [], [], [], [], [])
+        return ListTrajectory([], [], [], [], [], [], [], [])
 
     def tensor(self) -> "TensorTrajectory":
         if isinstance(self.rewards[0], List):
@@ -65,6 +74,8 @@ class ListTrajectory(Trajectory):
             self.is_first,
             self.values,
             self.probs,
+            self.advantages,
+            self.returns,
         ):
             yield TensorTrajectory(*values)
 
@@ -106,79 +117,3 @@ class TensorTrajectory(Trajectory):
             t = TensorTrajectory(**self.map(lambda x: torch.flatten(x, 0, 1)))
         indices = torch.randperm(len(t.actions))
         return TensorTrajectory(**t.map(lambda x: x[indices]))
-
-
-class ReplayBuffer:
-    def __init__(self, buffer_size):
-        self.trajectory = ListTrajectory.empty()
-        self.buffer_size = buffer_size
-
-    def reset(self):
-        self.trajectory = ListTrajectory.empty()
-
-    def generate_single(self, env: Env, agent: Agent, device, progress_bar=False, enable_grad=False):
-        raise NotImplementedError
-        self.reset()
-        steps = trange(self.buffer_size) if progress_bar else range(progress_bar)
-
-        with torch.set_grad_enabled(enable_grad):
-            for _ in steps:
-                agent.reset()
-                obs = env.reset()
-                is_first = True
-                while True:
-                    # obs = obs_to_tensor(obs).to(device)
-                    action = agent.act(obs)
-                    chosen_action = action.sample().item()
-                    next_obs, reward, done, _ = env.step(chosen_action)
-                    self.trajectory.append(obs=obs, actions=action, rewards=reward, is_first=is_first, values=None, probs=None)
-                    next_obs, is_first = obs, False
-                    if done:
-                        break
-            self.trajectory = self.trajectory.tensor()
-        return self.trajectory
-
-    def generate_vectorized(self, venv, agent: Agent, device, progress_bar=False, enable_grad=False, sampling_strategy=None):
-        self.reset()
-        steps = trange(self.buffer_size) if progress_bar else range(self.buffer_size)
-        sampling_strategy = sampling_strategy if sampling_strategy is not None else lambda x: x.sample()
-
-        with torch.set_grad_enabled(enable_grad):
-            for _ in steps:
-                rew, obs, first = venv.observe()
-
-                # Convert obs tensor  [N, W, H, C] to [N, C, W, H]
-                obs = torch.tensor(obs["rgb"], dtype=torch.float).detach().to(device)
-                obs = torch.permute(obs, (0, 3, 1, 2)) / 255
-
-                # Act
-                agent_output = agent.act(obs)
-                if isinstance(agent_output, tuple):
-                    action_dist, values = agent_output
-                else:
-                    action_dist = agent_output
-                    values = torch.zeros(obs.size(0))
-                chosen_actions = agent.sampling_strategy(action_dist)
-                probs = action_dist.probs
-                venv.act(chosen_actions.cpu().detach().numpy())
-
-                # Remove tensors from GPU (no effect if using cpu)
-                obs = obs.to("cpu")
-                chosen_actions = chosen_actions.detach().to("cpu")
-                rew = torch.from_numpy(rew).detach()
-                first = torch.from_numpy(first).detach().bool()
-                values = values.detach().to("cpu")
-                probs = probs.detach().to("cpu")
-
-                # Number items
-                self.trajectory.append(
-                    obs=obs,
-                    actions=chosen_actions,
-                    rewards=rew,
-                    is_first=first,
-                    values=values,
-                    probs=probs,
-                )
-        # To tensor
-        self.trajectory = self.trajectory.tensor()
-        return self.trajectory
