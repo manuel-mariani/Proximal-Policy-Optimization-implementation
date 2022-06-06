@@ -5,7 +5,6 @@ import gym3
 import numpy as np
 import procgen
 import torch
-from gym.core import ActType, ObsType
 from gym.spaces import Discrete
 from tqdm.auto import trange
 

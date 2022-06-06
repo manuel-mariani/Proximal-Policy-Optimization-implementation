@@ -1,10 +1,6 @@
 import random
-from typing import Any, List
 
-import gym
-import gym3
 import numpy as np
-import procgen
 import torch
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation

@@ -1,16 +1,9 @@
-from collections import namedtuple
 from dataclasses import dataclass
-from typing import Iterable, List
+from dataclasses import dataclass
+from typing import List
 
-import gym3
-import numpy as np
 import torch
-from gym import Env
 from torch import Tensor
-from torch.distributions import Categorical, Distribution
-from tqdm.auto import trange
-
-from src.agents.agent import Agent
 
 
 @dataclass

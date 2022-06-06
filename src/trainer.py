@@ -4,7 +4,7 @@ import torch
 from agents.agent import TrainableAgent
 from environment import CoinRunEnv
 from rewards import reward_pipeline
-from utils import discount, gae, reward_shaping, set_seeds, standardize
+from utils import set_seeds
 
 
 def train(
@@ -78,7 +78,6 @@ def validate(agent, venv, device, buffer_size):
         agent.eval()
         state = venv.callmethod("get_state")
         episodes = venv(agent, device, n_steps=buffer_size, use_tqdm=False)
-        episodes.rewards = reward_shaping(episodes.rewards, timeout=buffer_size - 25)
         _tot_shaped_rewards = torch.cat(episodes.rewards)
         reward_sum = _tot_shaped_rewards.sum().item()
         n_wins = (_tot_shaped_rewards > 0).sum().item()

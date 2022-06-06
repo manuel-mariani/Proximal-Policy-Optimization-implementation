@@ -1,11 +1,8 @@
 import torch
-from torch import nn
 from torch.distributions import Categorical
 
 from agents.agent import TrainableAgent
 from agents.ppo import PPONet
-from models.action_net import ActionNet
-from models.feature_extractor import FeatureExtractor
 from replay_buffer import TensorTrajectory
 from trainer import train_eval
 
