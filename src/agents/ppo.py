@@ -1,15 +1,10 @@
-import numpy as np
 import torch
-from torch import autocast, nn
+from torch import nn
 from torch.distributions import Categorical
 from torch.nn.functional import mse_loss
-from torchinfo import summary
-from tqdm.auto import tqdm
 
-from agents.agent import Agent, TrainableAgent
-from models.action_net import ActionNet
-from models.feature_extractor import FeatureExtractor
-from replay_buffer import ReplayBuffer, TensorTrajectory
+from agents.agent import TrainableAgent
+from replay_buffer import TensorTrajectory
 from trainer import train_eval
 
 
@@ -46,7 +41,7 @@ class PPONet(nn.Module):
     def forward(self, x):
         feats = self.feature_extractor(x)
         actions = torch.nn.functional.softmax(self.action_net(feats), dim=-1)
-        values = self.value_net(feats).flatten()
+        values = self.value_net(feats).flatten() * 4
         return actions, values
 
 
@@ -69,15 +64,17 @@ class PPOAgent(TrainableAgent):
 
     def loss(self, trajectory: "TensorTrajectory"):
         action_dist, state_values = self.act(trajectory.obs)
-        ratio = action_dist.probs / trajectory.probs
         a = trajectory.actions
-        # advantage = trajectory.returns
+        # ratio = action_dist.probs / trajectory.probs
+        ratio = action_dist.probs[:, a] / trajectory.probs[:, a]
+        advantage = trajectory.returns - state_values
+        # advantage = trajectory.returns - trajectory.values
         # advantage = trajectory.rewards
-        advantage = trajectory.advantages
+        # advantage = trajectory.advantages
 
         # r = ratio[:, a]
         # r = torch.index_select(ratio, dim=1, index=a)
-        r = ratio[:, a]
+        r = ratio
         e = self.clip_eps
         l_clip = torch.minimum(
             r * advantage,
