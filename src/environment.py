@@ -64,7 +64,7 @@ class CoinRunEnv:
 
     def __call__(self, agent: Agent, device, n_steps, use_tqdm=False):
         trajectory = ListTrajectory.empty()
-        steps = trange(n_steps) if use_tqdm else range(n_steps)
+        steps = trange(n_steps, leave=False) if use_tqdm else range(n_steps)
 
         with torch.no_grad():
             for _ in steps:

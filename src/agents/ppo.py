@@ -67,7 +67,3 @@ class PPOAgent(TrainableAgent):
         l_s = action_dist.entropy() * 0.01
         l_clip_s = - (l_clip - l_vf + l_s).sum()
         return l_clip_s
-
-
-if __name__ == "__main__":
-    train_eval(PPOAgent(4), "ppo.pt")

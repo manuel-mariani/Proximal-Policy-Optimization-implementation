@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from tqdm.auto import trange
 
 from agents.agent import TrainableAgent
 from environment import CoinRunEnv
@@ -15,6 +16,9 @@ def train(
         buffer_size=5000,
         batch_size=256,
         epochs_per_episode=2,
+        lr=3e-4,
+        gamma=0.99,
+        _lambda=0.95,
 ):
     # Initialize the environment
     set_seeds()
@@ -23,31 +27,23 @@ def train(
 
     # Initialize torch stuff
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    optimizer = torch.optim.Adam(agent.parameters, lr=3e-4)
+    optimizer = torch.optim.Adam(agent.parameters, lr=lr)
     agent.compile(device)
     agent.train()
 
-    for episode in range(n_episodes):
+    for episode in trange(n_episodes):
         # Generate the episodes
         episodes = venv(agent, device, n_steps=buffer_size, use_tqdm=True)
-        # render_trajectory(episodes)
         validate(agent, val_venv, device, buffer_size)
 
         # Shape, Discount and Standardize the rewards
-        # episodes.rewards = reward_shaping(episodes.rewards, timeout=buffer_size - 25)
         n_wins = (torch.cat(episodes.rewards) > 0).sum().item()
         n_losses = len(episodes.rewards) - n_wins
 
-        reward_pipeline(episodes, gamma=0.99, _lambda=0.95)
+        reward_pipeline(episodes, gamma=gamma, _lambda=_lambda)
         # (logging)
         reward_sum = torch.cat(episodes.rewards).sum().item()
         returns_sum = torch.cat(episodes.returns).sum().item()
-
-
-        # episodes.advantages = gae(episodes, gamma=0.99, _lambda=0.95)
-        # episodes.advantages = standardize(episodes.advantages)
-        # episodes.returns = discount(episodes.rewards, gamma=0.99)
-        # episodes.returns = standardize(episodes.returns)
 
         print()
         print("Episode", episode)
@@ -89,9 +85,3 @@ def validate(agent, venv, device, buffer_size):
 
         venv.callmethod("set_state", state)
         agent.train()
-
-
-def train_eval(agent: TrainableAgent, save_path):
-    agent = train(agent)
-    input("Waiting for input")
-    agent.save(save_path)

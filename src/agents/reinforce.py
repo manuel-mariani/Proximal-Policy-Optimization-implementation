@@ -27,7 +27,3 @@ class ReinforceAgent(TrainableAgent):
         log_prob = dist.log_prob(trajectory.actions)
         loss = - (log_prob * trajectory.returns).sum()
         return loss
-
-
-if __name__ == "__main__":
-    train_eval(ReinforceAgent(4), "reinforce.pt")

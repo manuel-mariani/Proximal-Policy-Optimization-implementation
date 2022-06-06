@@ -1,4 +1,6 @@
+import os
 from abc import ABC, abstractmethod
+from datetime import datetime
 
 import numpy as np
 import torch
@@ -86,8 +88,14 @@ class TrainableAgent(Agent, ABC):
         self.model.eval()
         return self
 
-    def save(self, path):
+    def save(self, path=None):
+        if path is None:
+            name = type(self).__name__
+            today = datetime.now().strftime("%m%d-%H%M")
+            print(os.getcwd())
+            path = f"../trained_models/{name}-{today}.pt"
         self.model.save(path)
+        print("Model saved in ", path)
 
     def load(self, path):
         self.model = torch.jit.load(path)

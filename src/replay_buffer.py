@@ -5,7 +5,6 @@ from typing import List
 import torch
 from torch import Tensor
 
-
 @dataclass
 class Trajectory:
     obs: List[Tensor] | Tensor
