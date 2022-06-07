@@ -17,6 +17,7 @@ dependencies:
   - black-jupyter
   - jupytext
   - matplotlib
+  - wandb
   - pip
   - pip:
     - procgen

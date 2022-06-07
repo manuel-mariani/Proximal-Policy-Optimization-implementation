@@ -22,13 +22,9 @@ class Agent(ABC):
     def reset(self):
         return self
 
-    def _one_hot(self, action_idx: int) -> Categorical:
-        dist = torch.zeros(self.act_space_size)
-        dist[action_idx] = 1.0
-        return Categorical(dist)
-
     def sampling_strategy(self, dist: Categorical):
         return dist.sample()
+
 
 # ======================================================================
 class RandomAgent(Agent):
@@ -92,7 +88,6 @@ class TrainableAgent(Agent, ABC):
         if path is None:
             name = type(self).__name__
             today = datetime.now().strftime("%m%d-%H%M")
-            print(os.getcwd())
             path = f"../trained_models/{name}-{today}.pt"
         self.model.save(path)
         print("Model saved in ", path)
@@ -110,7 +105,6 @@ class TrainableAgent(Agent, ABC):
         if self.rng.uniform() < self.epsilon:
             # return Categorical(1 - dist.probs).sample()
             # return dist.sample()
-            return torch.randint(low=0, high=self.act_space_size, size=(dist.probs.size(0), ))
+            return torch.randint(low=0, high=self.act_space_size, size=(dist.probs.size(0),))
         return dist.sample()
         # return torch.argmax(dist.probs, dim=-1)
-

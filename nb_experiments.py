@@ -25,7 +25,7 @@ procgen.env
 # + pycharm={"name": "#%%\n"}
 env: gym.Env = gym.make(
     "procgen:procgen-coinrun-v0",
-    # render="human",
+    render="human",
     start_level=0,
     distribution_mode="hard",  # "easy", "hard", "extreme", "memory", "exploration"
     restrict_themes=True,

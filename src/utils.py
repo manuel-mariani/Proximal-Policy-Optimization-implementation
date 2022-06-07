@@ -5,7 +5,7 @@ import torch
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 
-from replay_buffer import ListTrajectory
+from trajectories import ListTrajectory
 
 
 def render_trajectory(trajectory: ListTrajectory, fps=60, max_length=-1):

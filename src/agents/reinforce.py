@@ -3,7 +3,7 @@ from torch.distributions import Categorical
 
 from agents.agent import TrainableAgent
 from agents.ppo import PPONet
-from replay_buffer import TensorTrajectory
+from trajectories import TensorTrajectory
 
 
 class ReinforceAgent(TrainableAgent):

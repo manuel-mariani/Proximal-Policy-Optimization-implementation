@@ -4,7 +4,7 @@ from torch.distributions import Categorical
 from torch.nn.functional import mse_loss
 
 from agents.agent import TrainableAgent
-from replay_buffer import TensorTrajectory
+from trajectories import TensorTrajectory
 
 
 class PPONet(nn.Module):
@@ -62,7 +62,8 @@ class PPOAgent(TrainableAgent):
             r * advantage,
             torch.clip(r, 1 - e, 1 + e) * advantage,
         )
-        l_vf = mse_loss(state_values, trajectory.returns, reduction='none') * 0.5
+        l_vf = mse_loss(state_values, trajectory.returns, reduction="none") * 0.5
         l_s = action_dist.entropy() * 0.01
-        l_clip_s = - (l_clip - l_vf + l_s).sum()
-        return l_clip_s
+        l_clip_vf_s = -(l_clip - l_vf + l_s).sum()
+
+        return l_clip_vf_s

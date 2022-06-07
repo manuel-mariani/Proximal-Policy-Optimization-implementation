@@ -9,7 +9,7 @@ from gym.spaces import Discrete
 from tqdm.auto import trange
 
 from agents.agent import Agent
-from replay_buffer import ListTrajectory
+from trajectories import ListTrajectory
 
 
 def generate_environment(env_name="coinrun", render=None) -> gym.Env:
@@ -64,12 +64,12 @@ class CoinRunEnv:
 
     def __call__(self, agent: Agent, device, n_steps, use_tqdm=False):
         trajectory = ListTrajectory.empty()
-        steps = trange(n_steps, leave=False) if use_tqdm else range(n_steps)
+        steps = trange(n_steps, leave=False, colour='blue', desc="Trajectory generation") if use_tqdm else range(n_steps)
 
         with torch.no_grad():
-            for _ in steps:
-                rew, obs, first = self.observe()
+            rew, obs, first = self.observe()
 
+            for _ in steps:
                 # Convert obs tensor [N, W, H, C] to [N, C, W, H]
                 obs: torch.Tensor = torch.from_numpy(obs["rgb"]).float().to(device)
                 obs = obs.permute((0, 3, 1, 2)) / 255
@@ -82,17 +82,26 @@ class CoinRunEnv:
                 else:
                     action_dist, values = agent_output, None
 
-                # Sample the actions and step
+                # Sample the actions and act
                 chosen_actions = agent.sampling_strategy(action_dist)
                 self.act(chosen_actions.cpu().detach().numpy())
+
+                # Observe the effects of the actions.
+                # IMPORTANT: the reward we add to the trajectory is not the one of the current state,
+                # but the one of the state following the action
+                next_rew, next_obs, next_first = self.observe()
+                rew = next_rew
 
                 # Remove tensors from GPU (no effect if using CPU) and append to trajectory
                 trajectory.append(
                     obs=obs.to("cpu"),
                     actions=chosen_actions.to("cpu"),
-                    rewards=torch.from_numpy(rew).to("cpu"),
+                    rewards=torch.from_numpy(next_rew).to("cpu"),
                     is_first=torch.from_numpy(first).bool().to("cpu"),
                     probs=action_dist.probs.to("cpu"),
                     values=values,
                 )
+
+                # Step
+                obs, first = next_obs, next_first
         return trajectory.tensor().episodic()
