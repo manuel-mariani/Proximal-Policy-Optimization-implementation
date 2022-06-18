@@ -7,29 +7,32 @@ from trajectories import ListTrajectory
 
 
 def standardize(tensors: List[Tensor], eps=1e-5, c=3):
+    """Standardize a tensor (x - μ) / σ and clip it to (-c, c)"""
     tensor = torch.cat(tensors)
     mean, std = tensor.mean(), tensor.std(0) + eps
     return [((t - mean) / std).clip(-c, c) for t in tensors]
 
 
 def shape_rewards(episodes: ListTrajectory):
+    """Given a trajectory of episodes, change the rewards to aid the training"""
     shaped = []
-    for er, act in zip(episodes.rewards, episodes.actions):
+    for reward, action in zip(episodes.rewards, episodes.actions):
         # If last reward is positive, the episode is successful so add a great reward
         # otherwise add a penalty
-        if er[-1] > 1:
-            er[-1] = 50
+        if reward[-1] > 1:
+            reward[-1] = 10
         else:
-            er[-1] = -10
+            reward[-1] = -10
         # Decrease all rewards ∀ time steps, encouraging speed
-        er = er - 1
+        reward = reward - 1
         # If agent goes right, increase reward
-        er[act == 1] = er[act == 1] + 2
-        shaped.append(er)
+        reward[action == 1] = reward[action == 1] + 2
+        shaped.append(reward)
     episodes.rewards = shaped
 
 
 def discount_returns(episodes: ListTrajectory, gamma):
+    """Reward discounting: Vₜ = Rₜ + γVₜ₊₁"""
     discounted = []
     for er in episodes.rewards:
         er_flip = er.flip((0,))
@@ -42,6 +45,7 @@ def discount_returns(episodes: ListTrajectory, gamma):
 
 
 def gae(episodes: ListTrajectory, gamma, _lambda):
+    """Generalized Advantage Estimate"""
     advantages = []
     for episode in episodes:
         r_flip = episode.rewards.flip((0,))
@@ -61,6 +65,10 @@ def gae(episodes: ListTrajectory, gamma, _lambda):
 
 
 def reward_pipeline(episodes: ListTrajectory, gamma, _lambda):
+    """
+    Perform a sequence of in-place operations to the rewards.
+    In order: reward shaping, discounting, advantages and standardization
+    """
     shape_rewards(episodes)
     discount_returns(episodes, gamma)
     gae(episodes, gamma, _lambda)
@@ -72,6 +80,7 @@ def reward_pipeline(episodes: ListTrajectory, gamma, _lambda):
 
 # ======================================================================
 def episodes_metric(episodes: ListTrajectory, key_prefix=None) -> dict:
+    """Compute a dictionary of metrics for the given episodes. Used to evaluate the performance of the agent"""
     n_wins = 0
     for r in episodes.rewards:
         if r[-1] > 0:

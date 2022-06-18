@@ -40,10 +40,12 @@ def generate_vec_environment(n_parallel, env_name="coinrun", seed=42) -> gym3.En
 
 
 class CoinRunEnv:
+    """Wrapper for the coinrun vectorized procgen environment, using a smaller and less redundant action space"""
     def __init__(self, n_parallel, render=None, seed=42):
         self.action_space = Discrete(4)
         self.env = generate_vec_environment(n_parallel, env_name="coinrun", seed=seed)
 
+        # Remapping of the action space. Agent action -> Procgen action
         self.action_mapping = {
             0: 1,  # 0 -> LEFT
             1: 7,  # 1 -> RIGHT
@@ -53,16 +55,27 @@ class CoinRunEnv:
         self._translate_action = np.vectorize(self.action_mapping.get)
 
     def act(self, ac: Any) -> None:
+        """Perform an action, converting it to the appropriate procgen encoding"""
         action = self._translate_action(ac)
         self.env.act(action)
 
     def callmethod(self, method: str, *args: Sequence[Any], **kwargs: Sequence[Any]) -> List[Any]:
+        """Calls an internam method of the procgen environment. Mostly used to get/set the internal state"""
         return self.env.callmethod(method, *args, **kwargs)
 
     def observe(self) -> Tuple[Any, Any, Any]:
+        """Return the agent's observation of the environment"""
         return self.env.observe()
 
-    def __call__(self, agent: Agent, device, n_steps, use_tqdm=False):
+    def __call__(self, agent: Agent, device, n_steps, use_tqdm=False) -> "ListTrajectory":
+        """
+        Generate the trajectory of the episodes. The number of total steps is n_parallel * n_steps
+        :param agent: agent performing the actions
+        :param device: device the agent runs on
+        :param n_steps: number of steps per parallel environment
+        :param use_tqdm: if showing the tqdm progress bar
+        :return: ListTrajectory containing a list of trajectories, one for each episode
+        """
         trajectory = ListTrajectory.empty()
         steps = trange(n_steps, leave=False, colour='blue', desc="Trajectory generation") if use_tqdm else range(n_steps)
 

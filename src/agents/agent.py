@@ -38,10 +38,11 @@ class RandomAgent(Agent):
 # ======================================================================
 class TrainableAgent(Agent, ABC):
     @abstractmethod
-    def __init__(self, act_space_size, epsilon=0.1):
+    def __init__(self, act_space_size, val_epsilon, epsilon=0.1):
         super().__init__(act_space_size)
         self.model: torch.nn.Module = None
         self.epsilon = epsilon
+        self.val_epsilon = val_epsilon
         self.is_training = True
 
     @abstractmethod
@@ -98,7 +99,7 @@ class TrainableAgent(Agent, ABC):
     def sampling_strategy(self, dist: Categorical):
         if self.is_training:
             return self._training_sampling(dist)
-        return dist.sample()
+        return self._evaluation_sampling(dist)
 
     def _training_sampling(self, dist: Categorical):
         # Epsilon greedy
@@ -108,3 +109,8 @@ class TrainableAgent(Agent, ABC):
             return torch.randint(low=0, high=self.act_space_size, size=(dist.probs.size(0),))
         return dist.sample()
         # return torch.argmax(dist.probs, dim=-1)
+
+    def _evaluation_sampling(self, dist: Categorical):
+        if self.rng.uniform() < self.val_epsilon:
+            return dist.sample()
+        return torch.argmax(dist.probs, dim=-1)

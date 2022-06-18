@@ -11,12 +11,13 @@ class PPONet(nn.Module):
     def __init__(self, n_features, downsampling, n_actions):
         super().__init__()
         self.feature_extractor = nn.Sequential(
-            nn.Conv2d(3, 16, kernel_size=8, stride=4),
+            nn.Conv2d(3, 16, kernel_size=5, stride=3, padding=2),
             nn.LeakyReLU(0.01),
             nn.Conv2d(16, 32, kernel_size=3, stride=2),
             nn.LeakyReLU(0.01),
             nn.Conv2d(32, 8, kernel_size=3, stride=1),
             nn.LeakyReLU(0.01),
+            nn.BatchNorm2d(8),
             nn.Flatten(),
             nn.LazyLinear(n_features, bias=False),
             nn.Tanh(),
@@ -37,8 +38,8 @@ class PPONet(nn.Module):
 
 
 class PPOAgent(TrainableAgent):
-    def __init__(self, act_space_size, epsilon=0.05, clip_eps=0.25):
-        super().__init__(act_space_size, epsilon)
+    def __init__(self, act_space_size, epsilon=0.05, val_epsilon=0.1, clip_eps=0.25):
+        super().__init__(act_space_size, val_epsilon=val_epsilon, epsilon=epsilon)
         self.clip_eps = clip_eps
         self.model = PPONet(128, 1, act_space_size)
 

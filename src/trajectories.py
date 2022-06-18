@@ -5,18 +5,24 @@ from typing import List
 import torch
 from torch import Tensor
 
+
 @dataclass
 class Trajectory:
-    obs: List[Tensor] | Tensor
-    actions: List[Tensor] | Tensor
-    rewards: List[Tensor] | Tensor
-    is_first: List[Tensor] | Tensor
-    values: List[Tensor] | Tensor
-    probs: List[Tensor] | Tensor
-    advantages: List[Tensor] | Tensor
-    returns: List[Tensor] | Tensor
+    obs: List[Tensor] | Tensor  # Observations
+    actions: List[Tensor] | Tensor  # Actions
+    rewards: List[Tensor] | Tensor  # Rewards
+    is_first: List[Tensor] | Tensor  # Flag if the state is the first of an episode
+    values: List[Tensor] | Tensor  # Values estimated by the value-net
+    probs: List[Tensor] | Tensor  # Probabilities output of the action-net
+    advantages: List[Tensor] | Tensor  # Advantages (GAE)
+    returns: List[Tensor] | Tensor  # Returns (discounted rewards)
 
     def map(self, func):
+        """
+        Convenience function to map a function to all of the trajectory attributes
+        :param func: function (Tensor | List) -> Any
+        :return: A dictionary attribute_name -> func(attribute_val)
+        """
         return dict(
             obs=func(self.obs),
             actions=func(self.actions),
@@ -30,7 +36,10 @@ class Trajectory:
 
 
 class ListTrajectory(Trajectory):
+    """Trajectory containing a List of tensors"""
+
     def append(self, obs, actions, rewards, is_first, probs, values=None, advantages=None, returns=None):
+        """Append values to the lists"""
         self.obs.append(obs)
         self.actions.append(actions)
         self.rewards.append(rewards)
@@ -45,9 +54,11 @@ class ListTrajectory(Trajectory):
 
     @staticmethod
     def empty() -> "ListTrajectory":
+        """Create a new empty ListTrajectory"""
         return ListTrajectory([], [], [], [], [], [], [], [])
 
     def tensor(self) -> "TensorTrajectory":
+        """Convert the ListTrajectory to a TensorTrajectory"""
         if isinstance(self.rewards[0], List):
             return TensorTrajectory(**self.map(lambda x: torch.tensor(x)))
         if isinstance(self.rewards[0], Tensor):
@@ -59,6 +70,7 @@ class ListTrajectory(Trajectory):
         raise NotImplementedError
 
     def __iter__(self) -> "TensorTrajectory":
+        """Iterate through the trajectory, yielding a "point" TensorTrajectory for each instant of time"""
         for values in zip(
             self.obs,
             self.actions,
@@ -73,7 +85,10 @@ class ListTrajectory(Trajectory):
 
 
 class TensorTrajectory(Trajectory):
+    """Trajectory containing only Tensors. Can be either a point (one time instant) or N dimensional"""
+
     def batch(self, batch_size) -> ListTrajectory:
+        """Split the tensors to be of shape (batch_size, ...), returning a ListTrajectory with the splitted tensors"""
         if self.rewards.ndim > 1:
             func = lambda x: list(torch.flatten(x, 0, 1).split(batch_size))
         else:
@@ -81,9 +96,14 @@ class TensorTrajectory(Trajectory):
         return ListTrajectory(**self.map(func))
 
     def to(self, device):
+        """Put the tensors onto a device"""
         return TensorTrajectory(**self.map(lambda x: x.to(device)))
 
     def episodic(self) -> "ListTrajectory":
+        """
+        Convert the trajectory to an episodic list trajectory,
+        where each trajectory in the list starts at the first step of the episode
+        """
         _trajectory = ListTrajectory.empty()
         self.is_first[0, :] = 1
 
@@ -103,6 +123,7 @@ class TensorTrajectory(Trajectory):
         return _trajectory
 
     def shuffle(self):
+        """Random shuffle the tensors along the 1st dimension"""
         if self.actions.ndim == 1:
             t = self
         else:

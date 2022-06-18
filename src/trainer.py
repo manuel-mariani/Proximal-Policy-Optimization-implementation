@@ -42,7 +42,7 @@ def train(
         # Shape, Discount and Standardize the rewards
         reward_pipeline(episodes, gamma=gamma, _lambda=_lambda)
 
-        # Do a training step
+        # Backward steps (multiple times per replay buffer)
         ep_tensor = episodes.tensor()
         losses = []
         for _ in trange(epochs_per_episode, leave=False, colour='yellow', desc='Backprop'):
@@ -70,14 +70,13 @@ def train(
 
 
 def validate(agent, venv, device, buffer_size, logger=None):
-    if logger is None:
-        logger = Logger()
     agent.eval()
     state = venv.callmethod("get_state")
-
     episodes = venv(agent, device, n_steps=buffer_size, use_tqdm=True)
-    reward_pipeline(episodes, 0.99, 0.95)  # Parameters don't matter since we are not training
-    logger.log(**episodes_metric(episodes, key_prefix="val_"))
+
+    if logger is not None:
+        reward_pipeline(episodes, 0.99, 0.95)  # Parameters don't matter much since we are not training
+        logger.log(**episodes_metric(episodes, key_prefix="val_"))
 
     venv.callmethod("set_state", state)
     agent.train()

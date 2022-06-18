@@ -7,8 +7,8 @@ from trajectories import TensorTrajectory
 
 
 class ReinforceAgent(TrainableAgent):
-    def __init__(self, act_space_size: int, epsilon=0.2):
-        super().__init__(act_space_size, epsilon)
+    def __init__(self, act_space_size: int, epsilon=0.2, val_epsilon=0.1):
+        super().__init__(act_space_size, val_epsilon=val_epsilon, epsilon=epsilon)
         # Initialize the network
         n_features = 64
         # self.feature_extractor = FeatureExtractor(n_features, downsampling=1)
