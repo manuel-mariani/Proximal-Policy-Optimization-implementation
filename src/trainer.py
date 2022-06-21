@@ -55,8 +55,8 @@ def train(
         losses = []
         for _ in trange(epochs_per_episode, leave=False, colour='yellow', desc='Backprop'):
             total_epochs += 1
-            batches = ep_tensor.shuffle().batch(batch_size)
-            # batches = episodes.prioritized_sampling().batch(batch_size)
+            # batches = ep_tensor.shuffle().batch(batch_size)
+            batches = episodes.prioritized_sampling().batch(batch_size)
             for batch in batches:
                 loss = agent.loss(batch.to(device), logger)
                 losses.append(loss.item())

@@ -88,12 +88,16 @@ class ListTrajectory(Trajectory):
     def prioritized_sampling(self):
         # To each point in the trajectories, assign its probability of being picked to:
         #   - the inverse of the length of its episode
-        #   - the absolute value of its returns (log)
+        #   - the absolute value of its returns (log) TODO: change doc
         episode_lengths = [[len(x)] * len(x) for x in self.actions]
         episode_lengths = np.fromiter(itertools.chain.from_iterable(episode_lengths), dtype=int)
-        episode_returns = torch.cat(self.returns).abs().numpy() + 1
+        episode_max_rew = [[r.abs().max()] * len(r) for r in self.rewards]
+        episode_max_rew = np.fromiter(itertools.chain.from_iterable(episode_max_rew), dtype=float)
+        episode_max_rew = episode_max_rew / np.max(episode_max_rew)
+        # episode_returns = torch.cat(self.returns).abs().numpy() + 1
         # episode_returns = np.log(episode_returns + 1)
-        ep_probs = episode_returns / episode_lengths
+        # ep_probs = episode_returns / episode_lengths
+        ep_probs = (episode_max_rew + 1) / episode_lengths
         ep_probs = ep_probs / np.sum(ep_probs)
 
         # Sample all the points with replacement, using the probabilities calculated before
@@ -103,7 +107,6 @@ class ListTrajectory(Trajectory):
         sampled_idxs = np.random.default_rng().choice(indices, p=ep_probs, size=indices[-1] + 1, replace=True)
         # sampled_idxs = np.random.multinomial(n=indices[-1] + 1, pvals=ep_probs, size=1)
         return TensorTrajectory(**tensor.map(lambda x: x[sampled_idxs]))
-
 
 
 class TensorTrajectory(Trajectory):

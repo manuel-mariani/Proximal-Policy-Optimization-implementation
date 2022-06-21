@@ -17,7 +17,7 @@ AGENT = "ppo"  # "ppo" or "reinforce"
 TRAIN = True  # True runs training, False runs loaded model + trajectory rendering
 LOGGING = True  # Enables Wandb logging (must have an account)
 AUTOSAVE_MODEL = True
-MODEL_LOAD_PATH = "../trained_models/PPOAgent-0620-2323.pt"
+MODEL_LOAD_PATH = "../trained_models/PPOAgent-0621-2234.pt"
 
 # Discounted returns & advantage parameters
 GAMMA = 0.99
@@ -25,9 +25,9 @@ LAMBDA = 0.95
 
 # Training/validation parameters
 N_EPISODES = 50
-BATCH_SIZE = 256
+BATCH_SIZE = 512
 LR = 3e-4
-N_PARALLEL_TRAIN = 4  # Number of parallel agents to run training steps on
+N_PARALLEL_TRAIN = 8  # Number of parallel agents to run training steps on
 N_PARALLEL_VALID = 2  # Number of parallel agents to run validation steps on
 BUFFER_SIZE = 2048  # Maximum number of steps, per parallel agent
 EPOCHS_PER_EPISODE = 5  # No. of backward passes per training episode
