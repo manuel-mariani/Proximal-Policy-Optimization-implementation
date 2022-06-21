@@ -8,6 +8,8 @@ from gym.spaces import Discrete
 from torch.distributions import Categorical
 from torchinfo import summary
 
+from logger import Logger
+
 
 class Agent(ABC):
     @abstractmethod
@@ -46,7 +48,7 @@ class TrainableAgent(Agent, ABC):
         self.is_training = True
 
     @abstractmethod
-    def loss(self, trajectory: "TensorTrajectory"):
+    def loss(self, trajectory: "TensorTrajectory", logger: Logger=None):
         pass
 
     @property
@@ -60,7 +62,6 @@ class TrainableAgent(Agent, ABC):
         self.act(sample_input.to(device))
         s = summary(
             self.model,
-            # input_size=sample_input.size(),
             input_data=sample_input,
             mode="train",
             depth=7,
@@ -72,7 +73,6 @@ class TrainableAgent(Agent, ABC):
             ],
         )
         self.model = torch.jit.script(self.model)
-        # print(s)
         return self
 
     def train(self):

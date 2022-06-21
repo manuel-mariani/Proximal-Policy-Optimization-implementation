@@ -2,8 +2,10 @@ from dataclasses import dataclass
 from dataclasses import dataclass
 from typing import List
 
+import numpy as np
 import torch
 from torch import Tensor
+import itertools
 
 
 @dataclass
@@ -19,7 +21,7 @@ class Trajectory:
 
     def map(self, func):
         """
-        Convenience function to map a function to all of the trajectory attributes
+        Convenience function to map a function to all the trajectory attributes
         :param func: function (Tensor | List) -> Any
         :return: A dictionary attribute_name -> func(attribute_val)
         """
@@ -82,6 +84,26 @@ class ListTrajectory(Trajectory):
             self.returns,
         ):
             yield TensorTrajectory(*values)
+
+    def prioritized_sampling(self):
+        # To each point in the trajectories, assign its probability of being picked to:
+        #   - the inverse of the length of its episode
+        #   - the absolute value of its returns (log)
+        episode_lengths = [[len(x)] * len(x) for x in self.actions]
+        episode_lengths = np.fromiter(itertools.chain.from_iterable(episode_lengths), dtype=int)
+        episode_returns = torch.cat(self.returns).abs().numpy() + 1
+        # episode_returns = np.log(episode_returns + 1)
+        ep_probs = episode_returns / episode_lengths
+        ep_probs = ep_probs / np.sum(ep_probs)
+
+        # Sample all the points with replacement, using the probabilities calculated before
+        tensor = self.tensor()
+        assert tensor.actions.ndim == 1
+        indices = np.arange(0, tensor.actions.size(0))
+        sampled_idxs = np.random.default_rng().choice(indices, p=ep_probs, size=indices[-1] + 1, replace=True)
+        # sampled_idxs = np.random.multinomial(n=indices[-1] + 1, pvals=ep_probs, size=1)
+        return TensorTrajectory(**tensor.map(lambda x: x[sampled_idxs]))
+
 
 
 class TensorTrajectory(Trajectory):

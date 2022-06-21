@@ -1,40 +1,41 @@
+import warnings
+
 import torch
 
 from agents.ppo import PPOAgent
 from agents.reinforce import ReinforceAgent
 from environment import CoinRunEnv
 from logger import Logger, WandbLogger
-from trainer import train, validate
+from trainer import train
 from utils import render_trajectory
-import warnings
 
 # ======================================================================
 #                               CONSTANTS
 # ======================================================================
 
 AGENT = "ppo"  # "ppo" or "reinforce"
-TRAIN = False  # If to run training or just use trained model to display some output. TODO
+TRAIN = True  # True runs training, False runs loaded model + trajectory rendering
 LOGGING = True  # Enables Wandb logging (must have an account)
 AUTOSAVE_MODEL = True
-MODEL_LOAD_PATH = "../trained_models/PPOAgent-0618-1214.pt"
+MODEL_LOAD_PATH = "../trained_models/PPOAgent-0620-2323.pt"
 
-# Discounted returns parameters
+# Discounted returns & advantage parameters
 GAMMA = 0.99
 LAMBDA = 0.95
 
 # Training/validation parameters
 N_EPISODES = 50
-BATCH_SIZE = 512
+BATCH_SIZE = 256
 LR = 3e-4
-N_PARALLEL_TRAIN = 8  # Number of parallel agents to run training steps on
-N_PARALLEL_VALID = 4  # Number of parallel agents to run validation steps on
-BUFFER_SIZE = 4096  # Maximum number of steps, per parallel agent
-EPOCHS_PER_EPISODE = 10  # No. of backward passes per training episode
-EPSILON = 0.05  # Eps-greedy used in training
-VAL_EPSILON = 0.2  # Eps-greedy used in validation (to avoid looping / stuck states). 0 -> deterministic policy.
+N_PARALLEL_TRAIN = 4  # Number of parallel agents to run training steps on
+N_PARALLEL_VALID = 2  # Number of parallel agents to run validation steps on
+BUFFER_SIZE = 2048  # Maximum number of steps, per parallel agent
+EPOCHS_PER_EPISODE = 5  # No. of backward passes per training episode
+EPSILON = 0.0  # Eps-greedy used in training
+VAL_EPSILON = 1  # Eps-greedy used in validation (to avoid looping / stuck states). 0 -> deterministic policy.
 
 # PPO Specific
-PPO_CLIP_EPS = 0.25  # PPO clipping epsilon
+PPO_CLIP_EPS = 0.2  # PPO clipping epsilon
 
 
 # ======================================================================
@@ -63,6 +64,7 @@ def main():
     # Evaluation
     else:
         agent.load(MODEL_LOAD_PATH)
+        agent.eval()
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         venv = CoinRunEnv(N_PARALLEL_VALID, seed=123)
         episodes = venv(agent, device, n_steps=BUFFER_SIZE, use_tqdm=True)

@@ -20,8 +20,8 @@ class ReinforceAgent(TrainableAgent):
         dist, _ = self.model(obs)
         return Categorical(dist, validate_args=False)
 
-    def loss(self, trajectory: TensorTrajectory):
+    def loss(self, trajectory: TensorTrajectory, logger=None):
         dist = self.act(trajectory.obs, add_rand=False)
         log_prob = dist.log_prob(trajectory.actions)
-        loss = - (log_prob * trajectory.returns).sum()
+        loss = - (log_prob * trajectory.returns).mean()
         return loss
