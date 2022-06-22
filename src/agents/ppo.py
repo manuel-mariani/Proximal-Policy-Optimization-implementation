@@ -95,7 +95,7 @@ class PPOAgent(TrainableAgent):
         l_clip = -l_clip.mean()
         l_vf = l_vf.mean() * 0.5
         # l_s = torch.tensor(0.0)
-        l_s = -l_s.mean() * 0.01
+        l_s = -l_s.mean() * 0.001
         l_clip_vf_s = l_clip + l_vf + l_s
 
         if logger:

@@ -7,7 +7,6 @@ from agents.agent import TrainableAgent
 from environment import CoinRunEnv
 from logger import Logger
 from rewards import win_metrics, reward_metrics, reward_pipeline
-from standardizer import TrajectoryStandardizer
 from utils import set_seeds
 
 
@@ -51,12 +50,11 @@ def train(
 
         # Backward steps (multiple times per replay buffer)
         ep_tensor = episodes.tensor()
-        # ep_tensor = trajectory_standardizer(ep_tensor)
         losses = []
         for _ in trange(epochs_per_episode, leave=False, colour='yellow', desc='Backprop'):
             total_epochs += 1
-            # batches = ep_tensor.shuffle().batch(batch_size)
-            batches = episodes.prioritized_sampling().batch(batch_size)
+            batches = ep_tensor.shuffle().batch(batch_size)
+            # batches = episodes.prioritized_sampling().batch(batch_size)
             for batch in batches:
                 loss = agent.loss(batch.to(device), logger)
                 losses.append(loss.item())

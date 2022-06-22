@@ -1,7 +1,7 @@
 from torch import nn
 import torch.nn.functional as F
 import torch
-
+from torchvision import ops
 
 class ImpalaNet(nn.Module):
     def __init__(self, n_actions, input_image_channels=3):
@@ -13,6 +13,7 @@ class ImpalaNet(nn.Module):
                 nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
                 ResidualBlock(out_ch),
                 ResidualBlock(out_ch),
+                nn.BatchNorm2d(out_ch),
             )
 
         self.impala_1 = impala_block(input_image_channels, 16)
@@ -20,6 +21,8 @@ class ImpalaNet(nn.Module):
         self.impala_3 = impala_block(32, 32)
 
         self.fully_connected = nn.Sequential(
+            # nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+            # nn.InstanceNorm2d(32, affine=True, track_running_stats=True),
             nn.Flatten(),
             nn.Dropout(0.5),
             nn.ReLU(),
@@ -54,8 +57,11 @@ class ResidualBlock(nn.Module):
         self.block = nn.Sequential(
             nn.ReLU(),
             nn.Conv2d(ch, ch, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(ch),
             nn.ReLU(),
             nn.Conv2d(ch, ch, kernel_size=3, stride=1, padding=1),
+            # nn.BatchNorm2d(ch),
+            ops.SqueezeExcitation(input_channels=ch, squeeze_channels=ch//16),
         )
 
     def forward(self, x):

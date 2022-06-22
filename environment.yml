@@ -22,3 +22,4 @@ dependencies:
   - pip:
     - procgen
     - torch_optimizer
+    - welford
