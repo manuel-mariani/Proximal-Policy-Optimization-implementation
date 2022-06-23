@@ -1,12 +1,11 @@
 import numpy as np
 import torch
-import torch_optimizer as optim
 from tqdm.auto import trange
 
 from agents.agent import TrainableAgent
 from environment import CoinRunEnv
 from logger import Logger
-from rewards import win_metrics, reward_metrics, reward_pipeline
+from rewards import reward_metrics, reward_pipeline, win_metrics
 from utils import set_seeds
 
 
@@ -34,7 +33,6 @@ def train(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent.compile(device)
     agent.train()
-    # optimizer = optim.Ranger(agent.parameters, lr=lr)
     optimizer = torch.optim.Adam(agent.parameters, lr=lr, amsgrad=True)
     scheduler = torch.optim.lr_scheduler.CyclicLR(
         optimizer,
@@ -45,7 +43,6 @@ def train(
         gamma=0.99,
         cycle_momentum=False,
     )
-    total_epochs = 0
 
     for n_episode in trange(n_episodes, colour="green", desc="Training"):
         # Generate the episodes
@@ -54,7 +51,6 @@ def train(
         venv.callmethod("set_state", state)
         episodes = venv(agent, device, n_steps=buffer_size, use_tqdm=True)
         validate(agent, val_venv, device, buffer_size, logger=logger)
-
 
         # Log episode metrics
         logger.log(**win_metrics(episodes))
@@ -66,9 +62,7 @@ def train(
         ep_tensor = episodes.tensor()
         losses = []
         for _ in trange(epochs_per_episode, leave=False, colour="yellow", desc="Backprop"):
-            total_epochs += 1
-            # batches = ep_tensor.shuffle().batch(batch_size)
-            batches = episodes.prioritized_sampling().batch(batch_size)
+            batches = ep_tensor.prioritized_sampling().batch(batch_size)
             for batch in batches:
                 loss = agent.loss(batch.to(device), logger)
                 losses.append(loss.item())
@@ -78,7 +72,8 @@ def train(
                 torch.nn.utils.clip_grad_norm_(agent.parameters, 5)
                 optimizer.step()
             scheduler.step()
-        # Log loss
+
+        # Logging
         logger.log(
             commit=True,
             episode=n_episode,
@@ -92,6 +87,7 @@ def train(
 
 
 def validate(agent, venv, device, buffer_size, logger):
+    """Evaluate an agent on a fixed environment"""
     agent.eval()
     state = venv.callmethod("get_state")
     episodes = venv(agent, device, n_steps=buffer_size, use_tqdm=True)

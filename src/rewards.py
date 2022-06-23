@@ -1,9 +1,9 @@
 from typing import List
 
 import numpy as np
-from welford import Welford
 import torch
-from torch import Tensor, nn
+from torch import Tensor
+from welford import Welford
 
 from trajectories import ListTrajectory
 
@@ -64,14 +64,10 @@ def reward_pipeline(episodes: ListTrajectory, gamma, _lambda):
     In order: reward shaping, discounting, advantages and standardization
     """
     shape_rewards(episodes)
-    # episodes.rewards = standardize(episodes.rewards)
-
     discount_returns(episodes, gamma)
-    # episodes.returns = standardize(episodes.returns, shift_mean=False)
     episodes.returns = welford_standardizer(episodes.returns, returns_welford, shift_mean=True)
     gae(episodes, gamma, _lambda)
-    episodes.advantages = standardize(episodes.advantages, shift_mean=True)
-    # episodes.advantages = welford_standardizer(episodes.advantages, advantages_welford, shift_mean=True)
+    episodes.advantages = welford_standardizer(episodes.advantages, advantages_welford, shift_mean=True)
 
 
 # ======================================================================
@@ -91,6 +87,7 @@ def standardize(tensors: List[Tensor], eps=1e-8, c=None, shift_mean=True):
 
 
 def welford_standardizer(tensors: List[Tensor], w: Welford, shift_mean=False):
+    """Standardize a list of tensors using a running stat (Welford Online Algorithm)"""
     values = torch.cat(tensors).numpy()
     w.add_all(values)
     mean, std = w.mean, np.sqrt(w.var_p) + 1e-8
@@ -107,6 +104,8 @@ advantages_welford = Welford()
 
 
 # ======================================================================
+
+
 def win_metrics(episodes: ListTrajectory, key_prefix=None) -> dict:
     """Compute a dictionary of metrics for the given episodes. Used to evaluate the performance of the agent"""
     n_wins = 0
@@ -119,6 +118,7 @@ def win_metrics(episodes: ListTrajectory, key_prefix=None) -> dict:
             n_unfinished += 1
         else:
             n_losses += 1
+
     metrics = dict(
         n_wins=n_wins,
         n_losses=n_losses,
@@ -137,6 +137,7 @@ def reward_metrics(episodes: ListTrajectory, key_prefix=None) -> dict:
         returns_sum=torch.cat(episodes.returns).sum().item(),
         advantages_sum=torch.cat(episodes.advantages).sum().item(),
     )
+
     if key_prefix is None:
         return metrics
     return {f"{key_prefix}{k}": v for k, v in metrics.items()}

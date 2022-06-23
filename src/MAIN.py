@@ -14,17 +14,17 @@ from utils import render_trajectory
 # ======================================================================
 
 AGENT = "ppo"  # "ppo" or "reinforce"
-TRAIN = True  # True runs training, False runs loaded model + trajectory rendering
+TRAIN = False  # True runs training, False runs loaded model + trajectory rendering
 LOGGING = True  # Enables Wandb logging (must have an account)
 AUTOSAVE_MODEL = True
-MODEL_LOAD_PATH = "../trained_models/PPOAgent-0623-1635.pt"
+MODEL_LOAD_PATH = "../trained_models/PPOAgent-0623-2111.pt"
 
 # Discounted returns & advantage parameters
-GAMMA = 0.9
-LAMBDA = 0.95
+GAMMA = 0.999
+LAMBDA = 0.9
 
 # Training/validation parameters
-N_EPISODES = 100
+N_EPISODES = 50
 BATCH_SIZE = 2048
 LR = 1e-4
 N_PARALLEL_TRAIN = 4  # Number of parallel agents to run training steps on
@@ -84,5 +84,5 @@ train_kwargs = dict(
 )
 
 if __name__ == "__main__":
-    warnings.filterwarnings('ignore')
+    warnings.simplefilter("ignore")
     main()

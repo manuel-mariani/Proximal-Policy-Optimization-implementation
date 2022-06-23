@@ -1,11 +1,9 @@
 from dataclasses import dataclass
-from dataclasses import dataclass
 from typing import List
 
 import numpy as np
 import torch
 from torch import Tensor
-import itertools
 
 
 @dataclass
@@ -85,45 +83,10 @@ class ListTrajectory(Trajectory):
         ):
             yield TensorTrajectory(*values)
 
-    def _prioritized_sampling(self):
-        # To each point in the trajectories, assign its probability of being picked to:
-        #   - the inverse of the length of its episode
-        #   - the maximum absolute value of its rewards
-        episode_lengths = [[len(x)] * len(x) for x in self.actions]
-        episode_lengths = np.fromiter(itertools.chain.from_iterable(episode_lengths), dtype=int)
-
-        episode_max_rew = [[r.abs().max()] * len(r) for r in self.rewards]
-        episode_max_rew = np.fromiter(itertools.chain.from_iterable(episode_max_rew), dtype=float)
-        if np.max(episode_max_rew) != 0:
-            episode_max_rew = episode_max_rew / np.max(episode_max_rew)
-
-        ep_probs = (episode_max_rew + 1) / episode_lengths
-        ep_probs = ep_probs / np.sum(ep_probs)
-
-        # Sample all the points with replacement, using the probabilities calculated before
-        tensor = self.tensor()
-        assert tensor.actions.ndim == 1
-        indices = np.arange(0, tensor.actions.size(0))
-        sampled_idxs = np.random.default_rng().choice(indices, p=ep_probs, size=indices[-1] + 1, replace=True)
-        return TensorTrajectory(**tensor.map(lambda x: x[sampled_idxs]))
-
-    def prioritized_sampling(self, alpha=0.99, e=1e-2):
-        tensor = self.tensor()
-        transition_probabilities = (tensor.advantages.abs() + e) ** alpha
-        transition_probabilities = transition_probabilities.numpy()
-        transition_probabilities = transition_probabilities / np.sum(transition_probabilities)
-
-        assert tensor.actions.ndim == 1
-        indices = np.arange(0, tensor.actions.size(0))
-        sampled_idxs = np.random.default_rng().choice(
-            indices, p=transition_probabilities, size=indices[-1] + 1, replace=True
-        )
-        return TensorTrajectory(**tensor.map(lambda x: x[sampled_idxs]))
-
 
 # ======================================================================
 class TensorTrajectory(Trajectory):
-    """Trajectory containing only Tensors. Can be either a point (one time instant) or N dimensional"""
+    """Trajectory containing only Tensors. Can be either a point (one time instant / transition) or N dimensional"""
 
     def batch(self, batch_size) -> ListTrajectory:
         """Split the tensors to be of shape (batch_size, ...), returning a ListTrajectory with the splitted tensors"""
@@ -168,3 +131,15 @@ class TensorTrajectory(Trajectory):
             t = TensorTrajectory(**self.map(lambda x: torch.flatten(x, 0, 1)))
         indices = torch.randperm(len(t.actions))
         return TensorTrajectory(**t.map(lambda x: x[indices]))
+
+    def prioritized_sampling(self, alpha=0.6, e=1e-2):
+        """Sample transitions based on their absolute advantage"""
+        probs = (self.advantages.abs() + e) ** alpha
+        probs = (probs / probs.sum()).numpy()
+
+        assert self.actions.ndim == 1
+        size = self.actions.size(0)
+        indices = np.arange(0, size)
+
+        sampled_idxs = np.random.default_rng().choice(indices, p=probs, size=size, replace=True)
+        return TensorTrajectory(**self.map(lambda x: x[sampled_idxs]))

@@ -1,14 +1,14 @@
-import os
 from abc import ABC, abstractmethod
 from datetime import datetime
 
+from gym.spaces import Discrete
 import numpy as np
 import torch
-from gym.spaces import Discrete
 from torch.distributions import Categorical
 from torchinfo import summary
 
 from logger import Logger
+from trajectories import TensorTrajectory
 
 
 class Agent(ABC):
@@ -24,6 +24,7 @@ class Agent(ABC):
     def sampling_strategy(self, dist: Categorical):
         return dist.sample()
 
+
 # ======================================================================
 class RandomAgent(Agent):
     def __init__(self, act_space_size: Discrete):
@@ -38,13 +39,13 @@ class TrainableAgent(Agent, ABC):
     @abstractmethod
     def __init__(self, act_space_size, val_epsilon, epsilon=0.1):
         super().__init__(act_space_size)
-        self.model: torch.nn.Module = None
+        self.model: torch.nn.Module = torch.nn.Identity()
         self.epsilon = epsilon
         self.val_epsilon = val_epsilon
         self.is_training = True
 
     @abstractmethod
-    def loss(self, trajectory: "TensorTrajectory", logger: Logger=None):
+    def loss(self, trajectory: TensorTrajectory, logger: Logger = None):
         pass
 
     @property

@@ -1,11 +1,11 @@
 from typing import Any, List, Sequence, Tuple
 
 import gym
+from gym.spaces import Discrete
 import gym3
 import numpy as np
 import procgen
 import torch
-from gym.spaces import Discrete
 from tqdm.auto import trange
 
 from agents.agent import Agent
@@ -41,6 +41,7 @@ def generate_vec_environment(n_parallel, env_name="coinrun", seed=42, difficulty
 
 class CoinRunEnv:
     """Wrapper for the coinrun vectorized procgen environment, using a smaller and less redundant action space"""
+
     def __init__(self, n_parallel, render=None, seed=42, difficulty="easy"):
         self.action_space = Discrete(4)
         self.env = generate_vec_environment(n_parallel, env_name="coinrun", seed=seed, difficulty=difficulty)
@@ -77,7 +78,9 @@ class CoinRunEnv:
         :return: ListTrajectory containing a list of trajectories, one for each episode
         """
         trajectory = ListTrajectory.empty()
-        steps = trange(n_steps, leave=False, colour='blue', desc="Trajectory generation") if use_tqdm else range(n_steps)
+        steps = (
+            trange(n_steps, leave=False, colour="blue", desc="Trajectory generation") if use_tqdm else range(n_steps)
+        )
 
         with torch.no_grad():
             rew, obs, first = self.observe()

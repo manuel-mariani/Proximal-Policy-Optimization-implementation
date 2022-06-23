@@ -1,10 +1,8 @@
 import torch
-from torch import nn
 from torch.distributions import Categorical
-from torch.nn.functional import mse_loss
 
 from agents.agent import TrainableAgent
-from models.impala import ImpalaNet
+from agents.impala import ImpalaNet
 from trajectories import TensorTrajectory
 
 
@@ -18,48 +16,36 @@ class PPOAgent(TrainableAgent):
         actions, state_values = self.model(obs)
         return Categorical(probs=actions, validate_args=False), state_values
 
-    # def _training_sampling(self, dist: Categorical):
-    #     if self.rng.uniform() < self.epsilon:
-    #         return torch.randint(low=0, high=self.act_space_size, size=(dist.probs.size(0),))
-    #     return dist.sample()
-
     def loss(self, trajectory: "TensorTrajectory", logger=None):
-        action_dist, state_values = self.act(trajectory.obs)
+        action_dist, values = self.act(trajectory.obs)
+
+        # Compute the advantages (same as GAE A∞)
+        advantage = trajectory.returns - trajectory.values
+        advantage = (advantage - advantage.mean()) / (advantage.std(0) + 1e-8)
+
+        # Compute the CLIP loss
         e = self.clip_eps
         a = trajectory.actions
         r = action_dist.probs[:, a] / trajectory.probs[:, a]
-        advantage = trajectory.returns - trajectory.values
-        advantage = (advantage - advantage.mean()) / (advantage.std(0) + 1e-8)
-        # advantage = advantage / (advantage.std(0) + 1e-8)
-        # advantage = trajectory.advantages
-        # if advantage.max() != 0:
-        #     advantage = advantage / advantage.max()
-        # advantage = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
-        # advantage = advantage / (advantage.std() + 1e-8)
-        # Compute the losses (tensors of dim [Batch, 1]).
-        # Respectively they represent the CLIP loss, the Value Function error and the Entropy regularization
         l_clip = torch.minimum(
             r * advantage,
             r.clip(1 - e, 1 + e) * advantage,
         )
 
+        # Compute the Value Function loss. The procedure is similar to the CLIP loss, but with MSE and relative changes
         returns = trajectory.returns
-        # returns = trajectory.returns.clip(-10, 10)
-        # if returns.max() != 0:
-        #     returns = returns / returns.max()
-        # returns = (returns - returns.mean()) / (returns.std() + 1e-8)  # TODO: REVERT THIS
-        # returns = returns / (returns.std() + 1e-8)
-        # l_vf = mse_loss(state_values, returns, reduction="none")
+        old_values = trajectory.values
         l_vf = torch.minimum(
-            (state_values - returns).square(),
-            (trajectory.values + (state_values - trajectory.values).clip(-e, e) - returns).square(),
+            (values - returns).square(),
+            (old_values + (values - old_values).clip(-e, e) - returns).square(),
         )
+
+        # Entropy regularization term
         l_s = action_dist.entropy()
 
-        # Reduce the losses, scaling them by constants and sum them. Terms with '-' are to be maximized
+        # Reduce the losses, scale and sum them. Negative terms are to be maximized
         l_clip = -l_clip.mean()
         l_vf = l_vf.mean() * 0.5
-        # l_s = torch.tensor(0.0)
         l_s = -l_s.mean() * 0.01
         l_clip_vf_s = l_clip + l_vf + l_s
 
