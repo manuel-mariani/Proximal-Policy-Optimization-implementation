@@ -2,7 +2,7 @@ import torch
 from torch.distributions import Categorical
 
 from agents.agent import TrainableAgent
-from agents.ppo import PPONet
+from models.impala import ImpalaNet
 from trajectories import TensorTrajectory
 
 
@@ -10,10 +10,7 @@ class ReinforceAgent(TrainableAgent):
     def __init__(self, act_space_size: int, epsilon=0.2, val_epsilon=0.1):
         super().__init__(act_space_size, val_epsilon=val_epsilon, epsilon=epsilon)
         # Initialize the network
-        n_features = 64
-        # self.feature_extractor = FeatureExtractor(n_features, downsampling=1)
-        # self.action_net = ActionNet(n_features, act_space_size)
-        self.model = PPONet(downsampling=1, n_actions=act_space_size, n_features=n_features)
+        self.model = ImpalaNet(n_actions=act_space_size)
 
     def act(self, obs: torch.Tensor, add_rand=True):
         # with autocast("cpu" if obs.device == "cpu" else "cuda"):

@@ -85,7 +85,7 @@ class ListTrajectory(Trajectory):
         ):
             yield TensorTrajectory(*values)
 
-    def prioritized_sampling(self):
+    def _prioritized_sampling(self):
         # To each point in the trajectories, assign its probability of being picked to:
         #   - the inverse of the length of its episode
         #   - the maximum absolute value of its rewards
@@ -106,6 +106,20 @@ class ListTrajectory(Trajectory):
         indices = np.arange(0, tensor.actions.size(0))
         sampled_idxs = np.random.default_rng().choice(indices, p=ep_probs, size=indices[-1] + 1, replace=True)
         return TensorTrajectory(**tensor.map(lambda x: x[sampled_idxs]))
+
+    def prioritized_sampling(self, alpha=0.99, e=1e-2):
+        tensor = self.tensor()
+        transition_probabilities = (tensor.advantages.abs() + e) ** alpha
+        transition_probabilities = transition_probabilities.numpy()
+        transition_probabilities = transition_probabilities / np.sum(transition_probabilities)
+
+        assert tensor.actions.ndim == 1
+        indices = np.arange(0, tensor.actions.size(0))
+        sampled_idxs = np.random.default_rng().choice(
+            indices, p=transition_probabilities, size=indices[-1] + 1, replace=True
+        )
+        return TensorTrajectory(**tensor.map(lambda x: x[sampled_idxs]))
+
 
 # ======================================================================
 class TensorTrajectory(Trajectory):

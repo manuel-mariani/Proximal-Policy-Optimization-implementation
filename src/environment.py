@@ -12,27 +12,27 @@ from agents.agent import Agent
 from trajectories import ListTrajectory
 
 
-def generate_environment(env_name="coinrun", render=None) -> gym.Env:
+def generate_environment(env_name="coinrun", render=None, difficulty="easy") -> gym.Env:
     return gym.make(
         f"procgen:procgen-{env_name}-v0",
         render=render,
         start_level=0,
         num_levels=0,
-        distribution_mode="easy",  # "easy", "hard", "extreme", "memory", "exploration"
+        distribution_mode=difficulty,  # "easy", "hard", "extreme", "memory", "exploration"
         restrict_themes=True,
         use_backgrounds=False,
         use_monochrome_assets=False,
     )
 
 
-def generate_vec_environment(n_parallel, env_name="coinrun", seed=42) -> gym3.Env:
+def generate_vec_environment(n_parallel, env_name="coinrun", seed=42, difficulty="easy") -> gym3.Env:
     return procgen.ProcgenGym3Env(
         num=n_parallel,
         env_name=env_name,
         start_level=0,
         num_levels=0,
         rand_seed=seed,
-        distribution_mode="easy",  # "easy", "hard", "extreme", "memory", "exploration"
+        distribution_mode=difficulty,  # "easy", "hard", "extreme", "memory", "exploration"
         restrict_themes=True,
         use_backgrounds=False,
         use_monochrome_assets=False,
@@ -41,9 +41,9 @@ def generate_vec_environment(n_parallel, env_name="coinrun", seed=42) -> gym3.En
 
 class CoinRunEnv:
     """Wrapper for the coinrun vectorized procgen environment, using a smaller and less redundant action space"""
-    def __init__(self, n_parallel, render=None, seed=42):
+    def __init__(self, n_parallel, render=None, seed=42, difficulty="easy"):
         self.action_space = Discrete(4)
-        self.env = generate_vec_environment(n_parallel, env_name="coinrun", seed=seed)
+        self.env = generate_vec_environment(n_parallel, env_name="coinrun", seed=seed, difficulty=difficulty)
 
         # Remapping of the action space. Agent action -> Procgen action
         self.action_mapping = {

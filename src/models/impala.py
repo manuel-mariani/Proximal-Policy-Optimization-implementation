@@ -9,11 +9,12 @@ class ImpalaNet(nn.Module):
 
         def impala_block(in_ch, out_ch):
             return nn.Sequential(
+                nn.BatchNorm2d(in_ch),
                 nn.Conv2d(in_ch, out_ch, kernel_size=3, stride=1, padding=1),
                 nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
                 ResidualBlock(out_ch),
                 ResidualBlock(out_ch),
-                nn.BatchNorm2d(out_ch),
+                # nn.BatchNorm2d(out_ch),
             )
 
         self.impala_1 = impala_block(input_image_channels, 16)
@@ -35,7 +36,7 @@ class ImpalaNet(nn.Module):
         self.value_net = nn.Linear(256, 1)
 
         self.action_net.weight = torch.nn.Parameter(self.action_net.weight / 100)
-        self.value_net.weight = torch.nn.Parameter(self.value_net.weight / 100)
+        self.value_net.weight = torch.nn.Parameter(self.value_net.weight / 10)
 
     def forward(self, x):
         x = self.impala_1(x)
@@ -46,7 +47,7 @@ class ImpalaNet(nn.Module):
         a = self.action_net(x)
         a = F.softmax(a, dim=-1)
         v = self.value_net(x)
-        v = F.tanh(v) * 10
+        v = F.tanh(v) * 15
         # v = v.clip(-10, 10)
         return a, v
 
@@ -57,11 +58,11 @@ class ResidualBlock(nn.Module):
         self.block = nn.Sequential(
             nn.ReLU(),
             nn.Conv2d(ch, ch, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(ch),
+            # nn.BatchNorm2d(ch),
             nn.ReLU(),
             nn.Conv2d(ch, ch, kernel_size=3, stride=1, padding=1),
             # nn.BatchNorm2d(ch),
-            ops.SqueezeExcitation(input_channels=ch, squeeze_channels=ch//16),
+            # ops.SqueezeExcitation(input_channels=ch, squeeze_channels=ch//8),
         )
 
     def forward(self, x):

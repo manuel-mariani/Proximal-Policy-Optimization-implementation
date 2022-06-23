@@ -17,6 +17,7 @@ class WandbLogger(Logger):
     def __init__(self, run_name, config: dict):
         self.params = dict(project="AAS-RL", reinit=True, config=config, name=run_name)
         self.run = wandb.init(**self.params)
+        self.run.log_code()
         self.cache = dict()
 
     def finish(self):

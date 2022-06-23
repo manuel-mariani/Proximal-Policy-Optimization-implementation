@@ -17,12 +17,10 @@ def shape_rewards(episodes: ListTrajectory):
         if reward[-1] > 0:
             reward[-1] = 10
         elif len(reward) < 1000:
-            reward[-1] = -5
+            reward[-1] = -1
 
         # Decrease all rewards ∀ time steps, encouraging speed
-        # reward = reward - 1e-4
-        # If agent goes right, increase reward
-        # reward[action == 1] = reward[action == 1] + 2
+        reward = reward - 1e-6
         shaped.append(reward)
     episodes.rewards = shaped
 
@@ -66,33 +64,36 @@ def reward_pipeline(episodes: ListTrajectory, gamma, _lambda):
     In order: reward shaping, discounting, advantages and standardization
     """
     shape_rewards(episodes)
-    episodes.rewards = standardize(episodes.rewards)
-    # episodes.returns = welford_standardizer(episodes.rewards, rewards_welford, shift_mean=False)
+    # episodes.rewards = standardize(episodes.rewards)
 
     discount_returns(episodes, gamma)
-    episodes.returns = standardize(episodes.returns)
-    # episodes.returns = welford_standardizer(episodes.returns, returns_welford, shift_mean=False)
+    # episodes.returns = standardize(episodes.returns, shift_mean=False)
+    episodes.returns = welford_standardizer(episodes.returns, returns_welford, shift_mean=True)
     gae(episodes, gamma, _lambda)
-    episodes.advantages = standardize(episodes.advantages)
+    episodes.advantages = standardize(episodes.advantages, shift_mean=True)
     # episodes.advantages = welford_standardizer(episodes.advantages, advantages_welford, shift_mean=True)
 
 
 # ======================================================================
 
 
-def standardize(tensors: List[Tensor], eps=1e-8, c=None):
+def standardize(tensors: List[Tensor], eps=1e-8, c=None, shift_mean=True):
     """Standardize a tensor (x - μ) / σ, and if c is provided clip it to (-c, c)"""
     tensor = torch.cat(tensors)
-    mean, std = tensor.mean(), tensor.std() + eps
+    mean, std = tensor.mean(), tensor.std(0) + eps
+    res = tensors
+    if shift_mean:
+        res = [t - mean for t in res]
+    res = [t / std for t in res]
     if c is not None:
-        return [((t - mean) / std).clip(-c, c) for t in tensors]
-    return [((t - mean) / std) for t in tensors]
+        res = [t.clip(-c, c) for t in res]
+    return res
 
 
 def welford_standardizer(tensors: List[Tensor], w: Welford, shift_mean=False):
     values = torch.cat(tensors).numpy()
     w.add_all(values)
-    mean, std = w.mean, np.sqrt(w.var_p) + 1e-5
+    mean, std = w.mean, np.sqrt(w.var_p) + 1e-8
     if shift_mean:
         res = [(t - mean) / std for t in tensors]
     else:

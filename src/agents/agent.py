@@ -21,12 +21,8 @@ class Agent(ABC):
     def act(self, obs: torch.Tensor) -> Categorical:
         pass
 
-    def reset(self):
-        return self
-
     def sampling_strategy(self, dist: Categorical):
         return dist.sample()
-
 
 # ======================================================================
 class RandomAgent(Agent):
@@ -104,9 +100,9 @@ class TrainableAgent(Agent, ABC):
     def _training_sampling(self, dist: Categorical):
         # Epsilon greedy
         if self.rng.uniform() < self.epsilon:
-            # return Categorical(1 - dist.probs).sample()
+            return Categorical(1 - dist.probs).sample()
             # return dist.sample()
-            return torch.randint(low=0, high=self.act_space_size, size=(dist.probs.size(0),))
+            # return torch.randint(low=0, high=self.act_space_size, size=(dist.probs.size(0),))
         return dist.sample()
         # return torch.argmax(dist.probs, dim=-1)
 
