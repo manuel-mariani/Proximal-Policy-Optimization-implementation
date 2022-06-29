@@ -1,5 +1,6 @@
 import torch
 from torch.distributions import Categorical
+from torch.nn.functional import mse_loss
 
 from agents.agent import TrainableAgent
 from agents.impala import ImpalaNet
@@ -25,8 +26,8 @@ class PPOAgent(TrainableAgent):
 
         # Compute the CLIP loss
         e = self.clip_eps
-        a = trajectory.actions
-        r = action_dist.probs[:, a] / trajectory.probs[:, a]
+        a = trajectory.actions.unsqueeze(1)
+        r = action_dist.probs.gather(1, a) / trajectory.probs.gather(1, a)
         l_clip = torch.minimum(
             r * advantage,
             r.clip(1 - e, 1 + e) * advantage,
@@ -39,6 +40,7 @@ class PPOAgent(TrainableAgent):
             (values - returns).square(),
             (old_values + (values - old_values).clip(-e, e) - returns).square(),
         )
+        # l_vf = mse_loss(trajectory.returns, values, reduction='none')
 
         # Entropy regularization term
         l_s = action_dist.entropy()
@@ -46,7 +48,7 @@ class PPOAgent(TrainableAgent):
         # Reduce the losses, scale and sum them. Negative terms are to be maximized
         l_clip = -l_clip.mean()
         l_vf = l_vf.mean() * 0.5
-        l_s = -l_s.mean() * 0.01
+        l_s = -l_s.mean() * 0.001
         l_clip_vf_s = l_clip + l_vf + l_s
 
         if logger:
@@ -54,6 +56,7 @@ class PPOAgent(TrainableAgent):
                 loss_clip=l_clip.item(),
                 loss_value_mse=l_vf.item(),
                 loss_entropy=l_s.item(),
+                clip_fraction=((r - 1).abs() > e).float().mean().item()
             )
 
         return l_clip_vf_s

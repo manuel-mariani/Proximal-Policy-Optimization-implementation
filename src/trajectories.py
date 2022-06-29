@@ -40,16 +40,16 @@ class ListTrajectory(Trajectory):
 
     def append(self, obs, actions, rewards, is_first, probs, values=None, advantages=None, returns=None):
         """Append values to the lists"""
+        values = values if values is not None else torch.zeros_like(rewards)
+        advantages = advantages if advantages is not None else torch.zeros_like(rewards)
+        returns = returns if returns is not None else torch.zeros_like(rewards)
         self.obs.append(obs)
         self.actions.append(actions)
         self.rewards.append(rewards)
         self.is_first.append(is_first)
-        self.probs.append(probs)
-        values = values if values is not None else torch.zeros_like(rewards)
         self.values.append(values)
-        advantages = advantages if advantages is not None else torch.zeros_like(rewards)
+        self.probs.append(probs)
         self.advantages.append(advantages)
-        returns = returns if returns is not None else torch.zeros_like(rewards)
         self.returns.append(returns)
 
     @staticmethod
@@ -64,7 +64,7 @@ class ListTrajectory(Trajectory):
         if isinstance(self.rewards[0], Tensor):
             s = self.rewards[0].size()
             same_lengths = sum([t.size() != s for t in self.rewards]) == 0
-            if same_lengths:
+            if same_lengths and self.rewards[0].ndim == 1:
                 return TensorTrajectory(**self.map(lambda x: torch.stack(x)))
             return TensorTrajectory(**self.map(lambda x: torch.cat(x)))
         raise NotImplementedError
@@ -132,7 +132,7 @@ class TensorTrajectory(Trajectory):
         indices = torch.randperm(len(t.actions))
         return TensorTrajectory(**t.map(lambda x: x[indices]))
 
-    def prioritized_sampling(self, alpha=0.6, e=1e-2):
+    def prioritized_sampling(self, alpha=0.6, e=1e-3):
         """Sample transitions based on their absolute advantage"""
         probs = (self.advantages.abs() + e) ** alpha
         probs = (probs / probs.sum()).numpy()

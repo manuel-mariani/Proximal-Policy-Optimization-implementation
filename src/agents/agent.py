@@ -90,8 +90,9 @@ class TrainableAgent(Agent, ABC):
         self.model.save(path)
         print("Model saved in ", path)
 
-    def load(self, path):
+    def load(self, path, device):
         self.model = torch.jit.load(path)
+        self.model.to(device)
 
     def sampling_strategy(self, dist: Categorical):
         if self.is_training:
@@ -101,9 +102,9 @@ class TrainableAgent(Agent, ABC):
     def _training_sampling(self, dist: Categorical):
         # Epsilon greedy
         if self.rng.uniform() < self.epsilon:
-            return Categorical(1 - dist.probs).sample()
+            # return Categorical(1 - dist.probs).sample()
             # return dist.sample()
-            # return torch.randint(low=0, high=self.act_space_size, size=(dist.probs.size(0),))
+            return torch.randint(low=0, high=self.act_space_size, size=(dist.probs.size(0),))
         return dist.sample()
         # return torch.argmax(dist.probs, dim=-1)
 

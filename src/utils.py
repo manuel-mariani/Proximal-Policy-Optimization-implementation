@@ -11,6 +11,7 @@ from trajectories import ListTrajectory
 def render_trajectory(trajectory: ListTrajectory, fps=60, max_length=-1):
     """Renders a trajectory (episodic)"""
     obs = torch.cat(trajectory.obs)
+    # obs = obs[:, -1]  # Get the last frame of the frame stack
     obs = torch.permute(obs, (0, 2, 3, 1)).cpu().numpy()
     ani = render_np(obs[:max_length])
 

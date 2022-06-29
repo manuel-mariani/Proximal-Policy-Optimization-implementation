@@ -17,20 +17,20 @@ AGENT = "ppo"  # "ppo" or "reinforce"
 TRAIN = False  # True runs training, False runs loaded model + trajectory rendering
 LOGGING = True  # Enables Wandb logging (must have an account)
 AUTOSAVE_MODEL = True
-MODEL_LOAD_PATH = "../trained_models/PPOAgent-0623-2111.pt"
+MODEL_LOAD_PATH = "../trained_models/PPOAgent-0629-1245.pt"
 
 # Discounted returns & advantage parameters
-GAMMA = 0.999
-LAMBDA = 0.9
+GAMMA = 0.99
+LAMBDA = 0.95
 
 # Training/validation parameters
 N_EPISODES = 50
 BATCH_SIZE = 2048
-LR = 1e-4
-N_PARALLEL_TRAIN = 4  # Number of parallel agents to run training steps on
+LR = 3e-3
+N_PARALLEL_TRAIN = 8  # Number of parallel agents to run training steps on
 N_PARALLEL_VALID = 2  # Number of parallel agents to run validation steps on
 BUFFER_SIZE = 2048  # Maximum number of steps, per parallel agent
-EPOCHS_PER_EPISODE = 4  # No. of backward passes per training episode
+EPOCHS_PER_EPISODE = 5  # Number of backward passes per training episode
 EPSILON = 0.0  # Eps-greedy used in training
 VAL_EPSILON = 1.0  # Eps-greedy used in validation (to avoid looping / stuck states). 0 -> deterministic policy.
 
@@ -42,6 +42,8 @@ PPO_CLIP_EPS = 0.2  # PPO clipping epsilon
 
 
 def main():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     # Set agent
     if AGENT.lower() == "ppo":
         agent = PPOAgent(4, epsilon=EPSILON, val_epsilon=VAL_EPSILON, clip_eps=PPO_CLIP_EPS)
@@ -57,17 +59,16 @@ def main():
 
     # Training
     if TRAIN:
-        train(agent, logger, **train_kwargs)
+        train(agent, logger, device, **train_kwargs)
         save = True if AUTOSAVE_MODEL else input("Save model? [Y/n]").strip() != "n"
         if save:
             agent.save()
     # Evaluation
     else:
-        agent.load(MODEL_LOAD_PATH)
+        agent.load(MODEL_LOAD_PATH, device)
         agent.eval()
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        venv = CoinRunEnv(N_PARALLEL_VALID, seed=123)
-        episodes = venv(agent, device, n_steps=BUFFER_SIZE, use_tqdm=True)
+        venv = CoinRunEnv(N_PARALLEL_VALID, device, seed=123)
+        episodes = venv(agent, n_steps=BUFFER_SIZE, use_tqdm=True)
         render_trajectory(episodes)
 
 

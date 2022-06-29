@@ -8,7 +8,7 @@ from welford import Welford
 from trajectories import ListTrajectory
 
 
-def shape_rewards(episodes: ListTrajectory):
+def shape_rewards(episodes: ListTrajectory, max_ep_len):
     """Given a trajectory of episodes, change the rewards to aid the training"""
     shaped = []
     for reward, action in zip(episodes.rewards, episodes.actions):
@@ -16,11 +16,11 @@ def shape_rewards(episodes: ListTrajectory):
         # otherwise if the episode ends before the maximum allowed steps, decrease the reward
         if reward[-1] > 0:
             reward[-1] = 10
-        elif len(reward) < 1000:
+        elif len(reward) < max_ep_len:
             reward[-1] = -1
 
         # Decrease all rewards ∀ time steps, encouraging speed
-        reward = reward - 1e-6
+        reward = reward - 1e-3
         shaped.append(reward)
     episodes.rewards = shaped
 
@@ -58,15 +58,18 @@ def gae(episodes: ListTrajectory, gamma, _lambda):
     episodes.advantages = advantages
 
 
-def reward_pipeline(episodes: ListTrajectory, gamma, _lambda):
+def reward_pipeline(episodes: ListTrajectory, max_ep_len, gamma, _lambda):
     """
     Perform a sequence of in-place operations to the rewards.
     In order: reward shaping, discounting, advantages and standardization
     """
-    shape_rewards(episodes)
+    shape_rewards(episodes, max_ep_len=max_ep_len)
+
     discount_returns(episodes, gamma)
+    # episodes.returns = standardize(episodes.returns)
     episodes.returns = welford_standardizer(episodes.returns, returns_welford, shift_mean=True)
     gae(episodes, gamma, _lambda)
+    # episodes.advantages = standardize(episodes.advantages)
     episodes.advantages = welford_standardizer(episodes.advantages, advantages_welford, shift_mean=True)
 
 
@@ -106,7 +109,7 @@ advantages_welford = Welford()
 # ======================================================================
 
 
-def win_metrics(episodes: ListTrajectory, key_prefix=None) -> dict:
+def win_metrics(episodes: ListTrajectory, max_ep_len, key_prefix=None) -> dict:
     """Compute a dictionary of metrics for the given episodes. Used to evaluate the performance of the agent"""
     n_wins = 0
     n_losses = 0
@@ -114,7 +117,7 @@ def win_metrics(episodes: ListTrajectory, key_prefix=None) -> dict:
     for r in episodes.rewards:
         if r[-1] > 0:
             n_wins += 1
-        elif len(r) == 1000:
+        elif len(r) == max_ep_len:
             n_unfinished += 1
         else:
             n_losses += 1
@@ -141,3 +144,12 @@ def reward_metrics(episodes: ListTrajectory, key_prefix=None) -> dict:
     if key_prefix is None:
         return metrics
     return {f"{key_prefix}{k}": v for k, v in metrics.items()}
+
+
+def action_metrics(episodes: ListTrajectory, key_prefix="") -> dict:
+    """Compute a dict representing the distribution of actions in the episodes"""
+    d = dict()
+    actions, counts = torch.cat(episodes.actions).unique(return_counts=True)
+    for a, c in torch.stack((actions, counts), dim=1):
+        d[f"{key_prefix}action_{a.item()}"] = c.item()
+    return d

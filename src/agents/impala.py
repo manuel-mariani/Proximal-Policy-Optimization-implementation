@@ -24,17 +24,28 @@ class ImpalaNet(nn.Module):
         self.fully_connected = nn.Sequential(
             # nn.InstanceNorm2d(32, affine=True, track_running_stats=True),
             nn.Flatten(),
-            nn.Dropout(0.5),
+            # nn.Dropout(0.2),
             nn.ReLU(),
             nn.LazyLinear(256),
             nn.Tanh(),
         )
 
-        self.action_net = nn.Linear(256, n_actions)
         self.value_net = nn.Linear(256, 1)
+        self.action_net = nn.Linear(256, n_actions)
+        self.action_net.weight = nn.Parameter(self.action_net.weight / 100)
 
-        self.action_net.weight = torch.nn.Parameter(self.action_net.weight / 100)
-        self.value_net.weight = torch.nn.Parameter(self.value_net.weight / 10)
+        # self.action_net = nn.Sequential(
+        #     nn.Linear(256, 64),
+        #     nn.ReLU(),
+        #     nn.Linear(64, 32),
+        #     nn.ReLU(),
+        #     nn.Linear(32, n_actions)
+        # )
+        # for layer in self.action_net.modules():
+        #     if isinstance(layer, nn.Linear):
+        #         layer.weight = nn.Parameter(layer.weight / 10)
+
+        self.value_net.weight = nn.Parameter(self.value_net.weight / 10)
 
     def forward(self, x):
         x = self.impala_1(x)
@@ -52,6 +63,8 @@ class ImpalaNet(nn.Module):
 class ResidualBlock(nn.Module):
     def __init__(self, ch):
         super().__init__()
+        from torchvision.models import efficientnet_b0
+        efficientnet_b0()
         self.block = nn.Sequential(
             nn.ReLU(),
             nn.Conv2d(ch, ch, kernel_size=3, stride=1, padding=1),
