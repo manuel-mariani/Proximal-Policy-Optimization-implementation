@@ -1,11 +1,11 @@
-import numpy as np
 import torch
 from tqdm.auto import trange
+from welford import Welford
 
 from agents.agent import TrainableAgent
 from environment import CoinRunEnv
 from logger import Logger
-from rewards import action_metrics, reward_metrics, reward_pipeline, win_metrics
+from rewards import action_metrics, discount_returns, gae, reward_metrics, welford_standardizer, win_metrics
 from utils import set_seeds
 
 
@@ -13,7 +13,7 @@ def train(
     agent: TrainableAgent,
     logger: Logger,
     device,
-    n_episodes=100,
+    n_steps=100,
     n_parallel=8,
     validation_n_parallel=4,
     buffer_size=5000,
@@ -34,10 +34,13 @@ def train(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent.compile(device)
     agent.train()
-    optimizer = torch.optim.Adam(agent.parameters, lr=lr)
+    optimizer = torch.optim.Adam(agent.parameters, lr=lr, weight_decay=0.001)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
 
-    for n_episode in trange(n_episodes, colour="green", desc="Training"):
+    # Initialize running stats for rewards
+    rewards_welford = Welford()
+
+    for step in trange(n_steps, colour="green", desc="Training"):
         # Generate the episodes
         # if n_episode % 10 == 0:
         #     state = venv.callmethod("get_state")
@@ -49,30 +52,30 @@ def train(
         logger.log(**win_metrics(episodes, max_ep_len=max_ep_len))
         logger.log(**action_metrics(episodes))
 
-        # Shape, Discount and Standardize the rewards
-        reward_pipeline(episodes, max_ep_len=max_ep_len, gamma=gamma, _lambda=_lambda)
+        # Standardize rewards & compute rewards and advantages
+        episodes.rewards = welford_standardizer(episodes.rewards, rewards_welford)
+        episodes.returns = discount_returns(episodes, gamma)
+        episodes.advantages = gae(episodes, gamma, _lambda)
 
         # Backward steps (multiple times per replay buffer)
-        ep_tensor = episodes.tensor()
-        losses = []
+        ep_tensor = episodes.tensor(flatten=True)
         for _ in trange(epochs_per_episode, leave=False, colour="yellow", desc="Backprop"):
-            batches = ep_tensor.prioritized_sampling().batch(batch_size)
+            batches = ep_tensor.prioritized_sampling(alpha=0.5, eps=0.01).batch(batch_size)
             # batches = ep_tensor.shuffle().batch(batch_size)
             for batch in batches:
                 loss = agent.loss(batch.to(device), logger)
-                losses.append(loss.item())
+                logger.append(loss=loss.item())
 
                 optimizer.zero_grad()
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(agent.parameters, 5)
+                torch.nn.utils.clip_grad_norm_(agent.parameters, 1)
                 optimizer.step()
             scheduler.step()
 
         # Logging
         logger.log(
             commit=True,
-            episode=n_episode,
-            loss=np.mean(losses),
+            episode=step,
             lr=scheduler.get_last_lr(),
             **reward_metrics(episodes),
         )

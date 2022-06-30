@@ -8,6 +8,7 @@ from environment import CoinRunEnv
 from logger import Logger, WandbLogger
 from trainer import train
 from utils import render_trajectory
+import torch.backends.cudnn
 
 # ======================================================================
 #                               CONSTANTS
@@ -17,21 +18,21 @@ AGENT = "ppo"  # "ppo" or "reinforce"
 TRAIN = False  # True runs training, False runs loaded model + trajectory rendering
 LOGGING = True  # Enables Wandb logging (must have an account)
 AUTOSAVE_MODEL = True
-MODEL_LOAD_PATH = "../trained_models/PPOAgent-0629-1245.pt"
+MODEL_LOAD_PATH = f"../trained_models/{AGENT.lower()}.pt"
 
 # Discounted returns & advantage parameters
-GAMMA = 0.99
+GAMMA = 0.995
 LAMBDA = 0.95
 
 # Training/validation parameters
-N_EPISODES = 50
-BATCH_SIZE = 2048
-LR = 3e-3
-N_PARALLEL_TRAIN = 8  # Number of parallel agents to run training steps on
+N_STEPS = 50  # Number of training steps. A training step is composed of a rollout (ep generation) followed by backprop
+BATCH_SIZE = 512
+LR = 2e-3
+N_PARALLEL_TRAIN = 32  # Number of parallel agents to run training steps on
 N_PARALLEL_VALID = 2  # Number of parallel agents to run validation steps on
-BUFFER_SIZE = 2048  # Maximum number of steps, per parallel agent
-EPOCHS_PER_EPISODE = 5  # Number of backward passes per training episode
-EPSILON = 0.0  # Eps-greedy used in training
+BUFFER_SIZE = 1000  # Maximum number of steps, per parallel agent
+EPOCHS_PER_EPISODE = 2  # Number of backward passes per training episode
+EPSILON = 0.02  # Eps-greedy used in training
 VAL_EPSILON = 1.0  # Eps-greedy used in validation (to avoid looping / stuck states). 0 -> deterministic policy.
 
 # PPO Specific
@@ -43,7 +44,8 @@ PPO_CLIP_EPS = 0.2  # PPO clipping epsilon
 
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+    if torch.cuda.is_available():
+        torch.backends.cudnn.benchmark = True
     # Set agent
     if AGENT.lower() == "ppo":
         agent = PPOAgent(4, epsilon=EPSILON, val_epsilon=VAL_EPSILON, clip_eps=PPO_CLIP_EPS)
@@ -73,7 +75,7 @@ def main():
 
 
 train_kwargs = dict(
-    n_episodes=N_EPISODES,
+    n_steps=N_STEPS,
     n_parallel=N_PARALLEL_TRAIN,
     validation_n_parallel=N_PARALLEL_VALID,
     buffer_size=BUFFER_SIZE,

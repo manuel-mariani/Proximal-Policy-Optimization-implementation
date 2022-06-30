@@ -21,12 +21,13 @@ class PPOAgent(TrainableAgent):
         action_dist, values = self.act(trajectory.obs)
 
         # Compute the advantages (same as GAE A∞)
-        advantage = trajectory.returns - trajectory.values
-        advantage = (advantage - advantage.mean()) / (advantage.std(0) + 1e-8)
+        # advantage = trajectory.returns - trajectory.values
+        advantage = trajectory.advantages
+        # advantage = (advantage - advantage.mean()) / (advantage.std(0) + 1e-8)
 
         # Compute the CLIP loss
         e = self.clip_eps
-        a = trajectory.actions.unsqueeze(1)
+        a = trajectory.actions.unsqueeze(0)
         r = action_dist.probs.gather(1, a) / trajectory.probs.gather(1, a)
         l_clip = torch.minimum(
             r * advantage,
@@ -34,13 +35,13 @@ class PPOAgent(TrainableAgent):
         )
 
         # Compute the Value Function loss. The procedure is similar to the CLIP loss, but with MSE and relative changes
-        returns = trajectory.returns
-        old_values = trajectory.values
-        l_vf = torch.minimum(
-            (values - returns).square(),
-            (old_values + (values - old_values).clip(-e, e) - returns).square(),
-        )
-        # l_vf = mse_loss(trajectory.returns, values, reduction='none')
+        # returns = trajectory.returns
+        # old_values = trajectory.values
+        # l_vf = torch.minimum(
+        #     (values - returns).square(),
+        #     (old_values + (values - old_values).clip(-e, e) - returns).square(),
+        # )
+        l_vf = mse_loss(values, trajectory.returns, reduction='none')
 
         # Entropy regularization term
         l_s = action_dist.entropy()
@@ -48,15 +49,19 @@ class PPOAgent(TrainableAgent):
         # Reduce the losses, scale and sum them. Negative terms are to be maximized
         l_clip = -l_clip.mean()
         l_vf = l_vf.mean() * 0.5
-        l_s = -l_s.mean() * 0.001
+        l_s = -l_s.mean() * 0.01
         l_clip_vf_s = l_clip + l_vf + l_s
+
+        # Kullback-Leibler divergence (used to quantify the "difference" of the old vs new probability distribution
+        kl = (r - 1 - r.log()).mean()
 
         if logger:
             logger.append(
                 loss_clip=l_clip.item(),
                 loss_value_mse=l_vf.item(),
                 loss_entropy=l_s.item(),
-                clip_fraction=((r - 1).abs() > e).float().mean().item()
+                clip_fraction=((r - 1).abs() > e).float().mean().item(),
+                kl=kl.item(),
             )
 
         return l_clip_vf_s

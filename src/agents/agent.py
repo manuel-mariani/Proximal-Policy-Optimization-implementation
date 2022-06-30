@@ -100,13 +100,9 @@ class TrainableAgent(Agent, ABC):
         return self._evaluation_sampling(dist)
 
     def _training_sampling(self, dist: Categorical):
-        # Epsilon greedy
         if self.rng.uniform() < self.epsilon:
-            # return Categorical(1 - dist.probs).sample()
-            # return dist.sample()
             return torch.randint(low=0, high=self.act_space_size, size=(dist.probs.size(0),))
         return dist.sample()
-        # return torch.argmax(dist.probs, dim=-1)
 
     def _evaluation_sampling(self, dist: Categorical):
         if self.rng.uniform() < self.val_epsilon:

@@ -57,14 +57,14 @@ class ListTrajectory(Trajectory):
         """Create a new empty ListTrajectory"""
         return ListTrajectory([], [], [], [], [], [], [], [])
 
-    def tensor(self) -> "TensorTrajectory":
+    def tensor(self, flatten=False) -> "TensorTrajectory":
         """Convert the ListTrajectory to a TensorTrajectory"""
         if isinstance(self.rewards[0], List):
             return TensorTrajectory(**self.map(lambda x: torch.tensor(x)))
         if isinstance(self.rewards[0], Tensor):
             s = self.rewards[0].size()
             same_lengths = sum([t.size() != s for t in self.rewards]) == 0
-            if same_lengths and self.rewards[0].ndim == 1:
+            if not flatten and same_lengths and self.rewards[0].ndim == 1:
                 return TensorTrajectory(**self.map(lambda x: torch.stack(x)))
             return TensorTrajectory(**self.map(lambda x: torch.cat(x)))
         raise NotImplementedError
@@ -132,9 +132,9 @@ class TensorTrajectory(Trajectory):
         indices = torch.randperm(len(t.actions))
         return TensorTrajectory(**t.map(lambda x: x[indices]))
 
-    def prioritized_sampling(self, alpha=0.6, e=1e-3):
+    def prioritized_sampling(self, alpha=0.6, eps=1e-3):
         """Sample transitions based on their absolute advantage"""
-        probs = (self.advantages.abs() + e) ** alpha
+        probs = (self.advantages.abs() + eps) ** alpha
         probs = (probs / probs.sum()).numpy()
 
         assert self.actions.ndim == 1

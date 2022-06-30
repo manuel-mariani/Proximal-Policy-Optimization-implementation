@@ -22,7 +22,7 @@ def shape_rewards(episodes: ListTrajectory, max_ep_len):
         # Decrease all rewards ∀ time steps, encouraging speed
         reward = reward - 1e-3
         shaped.append(reward)
-    episodes.rewards = shaped
+    return shaped
 
 
 def discount_returns(episodes: ListTrajectory, gamma):
@@ -35,7 +35,7 @@ def discount_returns(episodes: ListTrajectory, gamma):
             dr.append(r + gamma * dr[-1])
         dr = torch.tensor(dr).flip((0,))
         discounted.append(dr)
-    episodes.returns = discounted
+    return discounted
 
 
 def gae(episodes: ListTrajectory, gamma, _lambda):
@@ -55,22 +55,7 @@ def gae(episodes: ListTrajectory, gamma, _lambda):
             v_prev = v
         adv = torch.tensor(adv).flip((0,))
         advantages.append(adv)
-    episodes.advantages = advantages
-
-
-def reward_pipeline(episodes: ListTrajectory, max_ep_len, gamma, _lambda):
-    """
-    Perform a sequence of in-place operations to the rewards.
-    In order: reward shaping, discounting, advantages and standardization
-    """
-    shape_rewards(episodes, max_ep_len=max_ep_len)
-
-    discount_returns(episodes, gamma)
-    # episodes.returns = standardize(episodes.returns)
-    episodes.returns = welford_standardizer(episodes.returns, returns_welford, shift_mean=True)
-    gae(episodes, gamma, _lambda)
-    # episodes.advantages = standardize(episodes.advantages)
-    episodes.advantages = welford_standardizer(episodes.advantages, advantages_welford, shift_mean=True)
+    return advantages
 
 
 # ======================================================================
@@ -89,9 +74,9 @@ def standardize(tensors: List[Tensor], eps=1e-8, c=None, shift_mean=True):
     return res
 
 
-def welford_standardizer(tensors: List[Tensor], w: Welford, shift_mean=False):
+def welford_standardizer(tensors: List[Tensor], w: Welford, shift_mean=True):
     """Standardize a list of tensors using a running stat (Welford Online Algorithm)"""
-    values = torch.cat(tensors).numpy()
+    values = torch.cat(tensors).squeeze().numpy()
     w.add_all(values)
     mean, std = w.mean, np.sqrt(w.var_p) + 1e-8
     if shift_mean:
@@ -99,12 +84,6 @@ def welford_standardizer(tensors: List[Tensor], w: Welford, shift_mean=False):
     else:
         res = [t / std for t in tensors]
     return res
-
-
-rewards_welford = Welford()
-returns_welford = Welford()
-advantages_welford = Welford()
-
 
 # ======================================================================
 
@@ -135,10 +114,21 @@ def win_metrics(episodes: ListTrajectory, max_ep_len, key_prefix=None) -> dict:
 
 def reward_metrics(episodes: ListTrajectory, key_prefix=None) -> dict:
     """Compute a dictionary of metrics for the given episodes. Used to evaluate the performance of the agent"""
+    rewards = torch.cat(episodes.rewards)
+    returns = torch.cat(episodes.returns)
+    advantages = torch.cat(episodes.advantages)
     metrics = dict(
-        reward_sum=torch.cat(episodes.rewards).sum().item(),
-        returns_sum=torch.cat(episodes.returns).sum().item(),
-        advantages_sum=torch.cat(episodes.advantages).sum().item(),
+        rewards_sum=rewards.sum().item(),
+        rewards_std=rewards.std(0).item(),
+        rewards_mean=rewards.mean().item(),
+        #
+        returns_sum=returns.sum().item(),
+        returns_std=returns.std(0).item(),
+        returns_mean=returns.mean().item(),
+        #
+        advantages_sum=advantages.sum().item(),
+        advantages_std=advantages.std(0).item(),
+        advantages_mean=advantages.mean().item(),
     )
 
     if key_prefix is None:

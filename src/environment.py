@@ -118,11 +118,14 @@ class CoinRunEnv:
                 # but the one of the state following the action
                 next_rew, next_obs, next_first = self.observe()
 
+                # Add a negative reward if the next step is first and the next reward is not positive
+                # next_rew[next_first & (next_rew <= 0)] = -1
+
                 # Remove tensors from GPU (no effect if using CPU) and append to trajectory
                 trajectory.append(
                     obs=obs.to("cpu"),
                     actions=chosen_actions.to("cpu"),
-                    rewards=next_rew.to("cpu"),
+                    rewards=next_rew.to("cpu").clip(-10, 10),  # Clip reward
                     is_first=first.to("cpu"),
                     probs=action_dist.probs.to("cpu"),
                     values=values,
