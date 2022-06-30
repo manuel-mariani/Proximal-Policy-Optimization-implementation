@@ -6,6 +6,7 @@ performance. As a baseline to evaluate the algorithm, a simple REINFORCE algorit
 
 A more detailed explanation of the project can be found in `docs/report.pdf`.
 
+Plots of the training can be found on [Wandb](https://wandb.ai/mmariani/AAS-RL/reports/Proximal-Policy-Optimization-an-implementation-study--VmlldzoyMjUxNzk5?accessToken=pb85co881bb6ool4f9abgaa5d1wnkan0q1vhxz1n3f2zfez9n85yaz4fd4zlujlw).
 
 ## Dependencies
 Dependencies can be installed using conda.
