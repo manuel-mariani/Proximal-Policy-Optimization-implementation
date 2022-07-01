@@ -138,7 +138,7 @@ class TensorTrajectory(Trajectory):
 
     def prioritized_sampling(self, alpha=0.6, eps=1e-3):
         """Sample transitions based on their absolute advantage"""
-        probs = (self.returns.abs() + eps) ** alpha
+        probs = (self.advantages.abs() + eps) ** alpha
         probs = (probs / probs.sum()).numpy()
 
         assert self.actions.ndim == 1

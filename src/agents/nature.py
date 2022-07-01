@@ -1,8 +1,8 @@
-import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from utils import layer_init
-import torch.nn.functional as F
+
 
 class NatureNet(nn.Module):
     def __init__(self, n_actions, input_image_channels=3):

@@ -1,6 +1,7 @@
 import warnings
 
 import torch
+import torch.backends.cudnn
 
 from agents.ppo import PPOAgent
 from agents.reinforce import ReinforceAgent
@@ -8,14 +9,13 @@ from environment import CoinRunEnv
 from logger import Logger, WandbLogger
 from trainer import train
 from utils import render_trajectory
-import torch.backends.cudnn
 
 # ======================================================================
 #                               CONSTANTS
 # ======================================================================
 
 AGENT = "ppo"  # "ppo" or "reinforce"
-TRAIN = False  # True runs training, False runs loaded model + trajectory rendering
+TRAIN = True  # True runs training, False runs loaded model + trajectory rendering
 LOGGING = True  # Enables Wandb logging (must have an account)
 AUTOSAVE_MODEL = True
 MODEL_LOAD_PATH = "../trained_models/PPOAgent-0701-1826.pt"

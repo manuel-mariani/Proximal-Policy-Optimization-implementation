@@ -1,12 +1,11 @@
 import numpy as np
 import torch
 from tqdm.auto import trange
-from welford import Welford
 
 from agents.agent import TrainableAgent
 from environment import CoinRunEnv
 from logger import Logger
-from rewards import action_metrics, discount_returns, gae, reward_metrics, welford_standardizer, win_metrics
+from rewards import action_metrics, discount_returns, gae, reward_metrics, win_metrics
 from utils import set_seeds
 
 
@@ -38,16 +37,6 @@ def train(
     optimizer = torch.optim.Adam(agent.parameters, lr=1e-4, weight_decay=5e-4)
     tot_steps = n_steps * int(np.ceil(n_parallel * buffer_size / batch_size)) * epochs_per_episode
     # scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=1e-6, max_lr=3e-3, step_size_up=tot_steps, cycle_momentum=False) # LR FINDER
-    # scheduler = torch.optim.lr_scheduler.OneCycleLR(
-    #     optimizer,
-    #     total_steps=tot_steps + 10,
-    #     max_lr=1e-3,
-    #     div_factor=5,
-    #     final_div_factor=10,
-    # )
-
-    # Initialize running stats for rewards
-    rewards_welford = Welford()
 
     for step in trange(n_steps, colour="green", desc="Training"):
         # Generate the episodes
@@ -62,7 +51,6 @@ def train(
         logger.log(**action_metrics(episodes))
 
         # Standardize rewards & compute rewards and advantages
-        # episodes.rewards = welford_standardizer(episodes.rewards, rewards_welford)
         episodes.returns = discount_returns(episodes, gamma)
         episodes.advantages = gae(episodes, gamma, _lambda)
 

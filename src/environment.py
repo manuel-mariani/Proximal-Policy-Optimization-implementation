@@ -1,14 +1,11 @@
 from typing import Any, List, Sequence, Tuple
 
-import gym
 from gym.spaces import Discrete
 import gym3
 import numpy as np
 import procgen
 import torch
 from torch import Tensor
-import torch.nn.functional as F
-from torchvision.transforms.functional import rgb_to_grayscale
 from tqdm.auto import trange
 
 from agents.agent import Agent
@@ -45,8 +42,6 @@ class CoinRunEnv:
             3: 4,  # 3 -> Nothing
         }
         self._translate_action = np.vectorize(self.action_mapping.get)
-        self.obs_stack_cache = torch.zeros(n_parallel, 4, 64, 64).to(device)
-
 
     def act(self, action) -> None:
         """Perform an action, converting it to the appropriate procgen encoding"""
@@ -69,20 +64,6 @@ class CoinRunEnv:
         obs = obs.permute((0, 3, 1, 2)) / 255
         # obs = F.upsample(obs, size=(32, 32))
         return rew, obs, is_first
-
-        # Convert to grayscale
-        obs = rgb_to_grayscale(obs)
-
-        # Frame stacking:
-        # Reset frame stack of first observations
-        self.obs_stack_cache[is_first] = torch.zeros_like(self.obs_stack_cache[is_first])
-        # Shift the stack
-        self.obs_stack_cache[:, :-1] = self.obs_stack_cache[:, 1:]
-        # Add the last frame
-        self.obs_stack_cache[:, -1] = obs[:, 0]
-
-        stacked_obs = self.obs_stack_cache.clone()
-        return rew, stacked_obs, is_first
 
     def __call__(self, agent: Agent, n_steps, use_tqdm=False) -> "ListTrajectory":
         """

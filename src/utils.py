@@ -11,7 +11,6 @@ from trajectories import ListTrajectory
 def render_trajectory(trajectory: ListTrajectory, fps=60, max_length=-1):
     """Renders a trajectory (episodic)"""
     obs = torch.cat(trajectory.obs)
-    # obs = obs[:, -1]  # Get the last frame of the frame stack
     obs = torch.permute(obs, (0, 2, 3, 1)).cpu().numpy()
     ani = render_np(obs[:max_length])
 
@@ -30,10 +29,12 @@ def render_np(obs, fps=60):
     plt.show()
     return ani
 
+
 def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
     torch.nn.init.orthogonal_(layer.weight, std)
     torch.nn.init.constant_(layer.bias, bias_const)
     return layer
+
 
 def set_seeds():
     torch.manual_seed(42)

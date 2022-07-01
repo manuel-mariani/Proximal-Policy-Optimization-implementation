@@ -1,28 +1,6 @@
-from typing import List
-
-import numpy as np
 import torch
-from torch import Tensor
-from welford import Welford
 
 from trajectories import ListTrajectory
-
-
-def shape_rewards(episodes: ListTrajectory, max_ep_len):
-    """Given a trajectory of episodes, change the rewards to aid the training"""
-    shaped = []
-    for reward, action in zip(episodes.rewards, episodes.actions):
-        # If last reward is positive, the episode is successful so add a great reward
-        # otherwise if the episode ends before the maximum allowed steps, decrease the reward
-        if reward[-1] > 0:
-            reward[-1] = 10
-        elif len(reward) < max_ep_len:
-            reward[-1] = -1
-
-        # Decrease all rewards ∀ time steps, encouraging speed
-        reward = reward - 1e-3
-        shaped.append(reward)
-    return shaped
 
 
 def discount_returns(episodes: ListTrajectory, gamma):
@@ -45,45 +23,20 @@ def gae(episodes: ListTrajectory, gamma, _lambda):
         r_flip = episode.rewards.flip((0,))
         v_flip = episode.values.flip((0,))
 
-        v_prev = v_flip[0]
-        adv = [r_flip[0] - v_flip[0]]
+        ep_adv = []
+        v_prev = 0
+        a_prev = 0
 
-        for r, v in zip(r_flip[1:], v_flip[1:]):
+        for r, v in zip(r_flip, v_flip):
             delta = r - v + gamma * v_prev  # δₜ = rₜ + γV(sₜ₊₁) - V(s)
-            a = delta + gamma * _lambda * adv[-1]  # Aₜ = δₜ + λγAₜ₊₁
-            adv.append(r - v + gamma * adv[-1])
+            a = delta + gamma * _lambda * a_prev  # Aₜ = δₜ + λγAₜ₊₁
+            ep_adv.append(a)
             v_prev = v
-        adv = torch.tensor(adv).flip((0,))
-        advantages.append(adv)
+            a_prev = a
+        ep_adv = torch.tensor(ep_adv).flip((0,))
+        advantages.append(ep_adv)
     return advantages
 
-
-# ======================================================================
-
-
-def standardize(tensors: List[Tensor], eps=1e-8, c=None, shift_mean=True):
-    """Standardize a tensor (x - μ) / σ, and if c is provided clip it to (-c, c)"""
-    tensor = torch.cat(tensors)
-    mean, std = tensor.mean(), tensor.std(0) + eps
-    res = tensors
-    if shift_mean:
-        res = [t - mean for t in res]
-    res = [t / std for t in res]
-    if c is not None:
-        res = [t.clip(-c, c) for t in res]
-    return res
-
-
-def welford_standardizer(tensors: List[Tensor], w: Welford, shift_mean=True):
-    """Standardize a list of tensors using a running stat (Welford Online Algorithm)"""
-    values = torch.cat(tensors).squeeze().numpy()
-    w.add_all(values)
-    mean, std = w.mean, np.sqrt(w.var_p) + 1e-8
-    if shift_mean:
-        res = [(t - mean) / std for t in tensors]
-    else:
-        res = [t / std for t in tensors]
-    return res
 
 # ======================================================================
 

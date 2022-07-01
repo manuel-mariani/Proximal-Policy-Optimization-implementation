@@ -1,8 +1,7 @@
 import torch
 from torch.distributions import Categorical
-import torch.nn.functional as F
+
 from agents.agent import TrainableAgent
-from agents.impala import ImpalaNet
 from agents.nature import NatureNet
 from trajectories import TensorTrajectory
 
@@ -20,10 +19,4 @@ class ReinforceAgent(TrainableAgent):
         dist = self.act(trajectory.obs, add_rand=False)
         log_prob = dist.log_prob(trajectory.actions)
         loss = -(log_prob * trajectory.returns).mean()
-
-        with torch.no_grad():
-            ratio = dist.probs.gather(1, trajectory.actions.unsqueeze(1)) / trajectory.probs
-            log_ratio = ratio.log()
-            kl = ((ratio - 1) - log_ratio).mean()
-            logger.append(kl=kl.item())
         return loss
