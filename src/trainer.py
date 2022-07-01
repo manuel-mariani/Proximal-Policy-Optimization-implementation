@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from tqdm.auto import trange
 from welford import Welford
@@ -34,8 +35,16 @@ def train(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent.compile(device)
     agent.train()
-    optimizer = torch.optim.Adam(agent.parameters, lr=lr, weight_decay=0.001)
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
+    optimizer = torch.optim.Adam(agent.parameters, lr=1e-4, weight_decay=5e-4)
+    tot_steps = n_steps * int(np.ceil(n_parallel * buffer_size / batch_size)) * epochs_per_episode
+    # scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer, base_lr=1e-6, max_lr=3e-3, step_size_up=tot_steps, cycle_momentum=False) # LR FINDER
+    # scheduler = torch.optim.lr_scheduler.OneCycleLR(
+    #     optimizer,
+    #     total_steps=tot_steps + 10,
+    #     max_lr=1e-3,
+    #     div_factor=5,
+    #     final_div_factor=10,
+    # )
 
     # Initialize running stats for rewards
     rewards_welford = Welford()
@@ -53,7 +62,7 @@ def train(
         logger.log(**action_metrics(episodes))
 
         # Standardize rewards & compute rewards and advantages
-        episodes.rewards = welford_standardizer(episodes.rewards, rewards_welford)
+        # episodes.rewards = welford_standardizer(episodes.rewards, rewards_welford)
         episodes.returns = discount_returns(episodes, gamma)
         episodes.advantages = gae(episodes, gamma, _lambda)
 
@@ -70,13 +79,13 @@ def train(
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(agent.parameters, 1)
                 optimizer.step()
-            scheduler.step()
+                # scheduler.step()
 
         # Logging
         logger.log(
             commit=True,
             episode=step,
-            lr=scheduler.get_last_lr(),
+            # lr=scheduler.get_last_lr(),
             **reward_metrics(episodes),
         )
 

@@ -18,20 +18,21 @@ AGENT = "ppo"  # "ppo" or "reinforce"
 TRAIN = False  # True runs training, False runs loaded model + trajectory rendering
 LOGGING = True  # Enables Wandb logging (must have an account)
 AUTOSAVE_MODEL = True
-MODEL_LOAD_PATH = f"../trained_models/{AGENT.lower()}.pt"
+MODEL_LOAD_PATH = "../trained_models/PPOAgent-0701-1826.pt"
+
 
 # Discounted returns & advantage parameters
 GAMMA = 0.995
 LAMBDA = 0.95
 
 # Training/validation parameters
-N_STEPS = 50  # Number of training steps. A training step is composed of a rollout (ep generation) followed by backprop
+N_STEPS = 250  # Number of training steps. A training step is composed of a rollout (ep generation) followed by backprop
 BATCH_SIZE = 512
 LR = 2e-3
 N_PARALLEL_TRAIN = 32  # Number of parallel agents to run training steps on
 N_PARALLEL_VALID = 2  # Number of parallel agents to run validation steps on
 BUFFER_SIZE = 1000  # Maximum number of steps, per parallel agent
-EPOCHS_PER_EPISODE = 2  # Number of backward passes per training episode
+EPOCHS_PER_EPISODE = 3  # Number of backward passes per training episode
 EPSILON = 0.02  # Eps-greedy used in training
 VAL_EPSILON = 1.0  # Eps-greedy used in validation (to avoid looping / stuck states). 0 -> deterministic policy.
 

@@ -4,6 +4,7 @@ from torch.nn.functional import mse_loss
 
 from agents.agent import TrainableAgent
 from agents.impala import ImpalaNet
+from agents.nature import NatureNet
 from trajectories import TensorTrajectory
 
 
@@ -11,7 +12,7 @@ class PPOAgent(TrainableAgent):
     def __init__(self, act_space_size, epsilon=0.05, val_epsilon=0.1, clip_eps=0.25):
         super().__init__(act_space_size, val_epsilon=val_epsilon, epsilon=epsilon)
         self.clip_eps = clip_eps
-        self.model = ImpalaNet(n_actions=act_space_size)
+        self.model = NatureNet(n_actions=act_space_size)
 
     def act(self, obs: torch.Tensor, add_rand=True):
         actions, state_values = self.model(obs)
@@ -21,14 +22,16 @@ class PPOAgent(TrainableAgent):
         action_dist, values = self.act(trajectory.obs)
 
         # Compute the advantages (same as GAE A∞)
-        # advantage = trajectory.returns - trajectory.values
-        advantage = trajectory.advantages
+        advantage = trajectory.returns - trajectory.values
+        # advantage = trajectory.returns
+        # advantage = trajectory.advantages
         # advantage = (advantage - advantage.mean()) / (advantage.std(0) + 1e-8)
 
         # Compute the CLIP loss
         e = self.clip_eps
-        a = trajectory.actions.unsqueeze(0)
-        r = action_dist.probs.gather(1, a) / trajectory.probs.gather(1, a)
+        r = action_dist.log_prob(trajectory.actions) - trajectory.log_prob_chosen
+        r = r.exp()
+        # r = action_dist.probs.gather(1, a) / trajectory.probs.gather(1, a)
         l_clip = torch.minimum(
             r * advantage,
             r.clip(1 - e, 1 + e) * advantage,
@@ -51,6 +54,7 @@ class PPOAgent(TrainableAgent):
         l_vf = l_vf.mean() * 0.5
         l_s = -l_s.mean() * 0.01
         l_clip_vf_s = l_clip + l_vf + l_s
+        # l_clip_vf_s = l_clip + l_s
 
         # Kullback-Leibler divergence (used to quantify the "difference" of the old vs new probability distribution
         kl = (r - 1 - r.log()).mean()

@@ -14,6 +14,7 @@ class Trajectory:
     is_first: List[Tensor] | Tensor  # Flag if the state is the first of an episode
     values: List[Tensor] | Tensor  # Values estimated by the value-net
     probs: List[Tensor] | Tensor  # Probabilities output of the action-net
+    log_prob_chosen: List[Tensor] | Tensor  # Log probabilities **of chosen action**
     advantages: List[Tensor] | Tensor  # Advantages (GAE)
     returns: List[Tensor] | Tensor  # Returns (discounted rewards)
 
@@ -30,6 +31,7 @@ class Trajectory:
             is_first=func(self.is_first),
             values=func(self.values),
             probs=func(self.probs),
+            log_prob_chosen=func(self.log_prob_chosen),
             advantages=func(self.advantages),
             returns=func(self.returns),
         )
@@ -38,7 +40,7 @@ class Trajectory:
 class ListTrajectory(Trajectory):
     """Trajectory containing a List of tensors"""
 
-    def append(self, obs, actions, rewards, is_first, probs, values=None, advantages=None, returns=None):
+    def append(self, obs, actions, rewards, is_first, probs, log_prob_chosen, values=None, advantages=None, returns=None):
         """Append values to the lists"""
         values = values if values is not None else torch.zeros_like(rewards)
         advantages = advantages if advantages is not None else torch.zeros_like(rewards)
@@ -49,13 +51,14 @@ class ListTrajectory(Trajectory):
         self.is_first.append(is_first)
         self.values.append(values)
         self.probs.append(probs)
+        self.log_prob_chosen.append(log_prob_chosen)
         self.advantages.append(advantages)
         self.returns.append(returns)
 
     @staticmethod
     def empty() -> "ListTrajectory":
         """Create a new empty ListTrajectory"""
-        return ListTrajectory([], [], [], [], [], [], [], [])
+        return ListTrajectory([], [], [], [], [], [], [], [], [])
 
     def tensor(self, flatten=False) -> "TensorTrajectory":
         """Convert the ListTrajectory to a TensorTrajectory"""
@@ -78,6 +81,7 @@ class ListTrajectory(Trajectory):
             self.is_first,
             self.values,
             self.probs,
+            self.log_prob_chosen,
             self.advantages,
             self.returns,
         ):
@@ -134,7 +138,7 @@ class TensorTrajectory(Trajectory):
 
     def prioritized_sampling(self, alpha=0.6, eps=1e-3):
         """Sample transitions based on their absolute advantage"""
-        probs = (self.advantages.abs() + eps) ** alpha
+        probs = (self.returns.abs() + eps) ** alpha
         probs = (probs / probs.sum()).numpy()
 
         assert self.actions.ndim == 1

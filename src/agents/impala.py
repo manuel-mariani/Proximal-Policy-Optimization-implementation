@@ -3,11 +3,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-
-def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
-    torch.nn.init.orthogonal_(layer.weight, std)
-    torch.nn.init.constant_(layer.bias, bias_const)
-    return layer
+from utils import layer_init
 
 
 class ImpalaNet(nn.Module):
@@ -17,7 +13,7 @@ class ImpalaNet(nn.Module):
         def impala_block(in_ch, out_ch):
             return nn.Sequential(
                 nn.BatchNorm2d(in_ch),
-                nn.Conv2d(in_ch, out_ch, kernel_size=3, stride=1, padding=1),
+                layer_init(nn.Conv2d(in_ch, out_ch, kernel_size=3, stride=1, padding=1)),
                 nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
                 ResidualBlock(out_ch),
                 ResidualBlock(out_ch),
@@ -31,12 +27,12 @@ class ImpalaNet(nn.Module):
             nn.Flatten(),
             # nn.Dropout(0.2),
             nn.ReLU(),
-            nn.LazyLinear(256),
-            nn.Tanh(),
+            layer_init(nn.Linear(2048, 512)),
+            nn.ReLU(),
         )
 
-        self.value_net = layer_init(nn.Linear(256, 1), std=1)
-        self.action_net = layer_init(nn.Linear(256, n_actions), std=0.01)
+        self.value_net = layer_init(nn.Linear(512, 1), std=1)
+        self.action_net = layer_init(nn.Linear(512, n_actions), std=0.01)
 
     def forward(self, x):
         x = self.impala_1(x)
@@ -58,9 +54,9 @@ class ResidualBlock(nn.Module):
         efficientnet_b0()
         self.block = nn.Sequential(
             nn.ReLU(),
-            nn.Conv2d(ch, ch, kernel_size=3, stride=1, padding=1),
+            layer_init(nn.Conv2d(ch, ch, kernel_size=3, stride=1, padding=1)),
             nn.ReLU(),
-            nn.Conv2d(ch, ch, kernel_size=3, stride=1, padding=1),
+            layer_init(nn.Conv2d(ch, ch, kernel_size=3, stride=1, padding=1)),
         )
 
     def forward(self, x):

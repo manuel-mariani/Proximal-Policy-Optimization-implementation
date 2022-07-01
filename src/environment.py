@@ -110,8 +110,9 @@ class CoinRunEnv:
                     action_dist, values = agent_output, None
 
                 # Sample the actions and act
-                chosen_actions = agent.sampling_strategy(action_dist)
+                chosen_actions = agent.sampling_strategy(action_dist).to(self.device)
                 self.act(chosen_actions.cpu().detach().numpy())
+                log_probs_chosen = action_dist.log_prob(chosen_actions)
 
                 # Observe the effects of the actions.
                 # IMPORTANT: the reward we add to the trajectory is not the one of the current state,
@@ -119,7 +120,7 @@ class CoinRunEnv:
                 next_rew, next_obs, next_first = self.observe()
 
                 # Add a negative reward if the next step is first and the next reward is not positive
-                # next_rew[next_first & (next_rew <= 0)] = -1
+                next_rew[next_first & (next_rew <= 0)] = -1
 
                 # Remove tensors from GPU (no effect if using CPU) and append to trajectory
                 trajectory.append(
@@ -128,6 +129,7 @@ class CoinRunEnv:
                     rewards=next_rew.to("cpu").clip(-10, 10),  # Clip reward
                     is_first=first.to("cpu"),
                     probs=action_dist.probs.to("cpu"),
+                    log_prob_chosen=log_probs_chosen.to("cpu"),
                     values=values,
                 )
 
