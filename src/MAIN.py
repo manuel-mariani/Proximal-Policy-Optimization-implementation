@@ -15,10 +15,10 @@ from utils import render_trajectory
 # ======================================================================
 
 AGENT = "ppo"  # "ppo" or "reinforce"
-TRAIN = True  # True runs training, False runs loaded model + trajectory rendering
+TRAIN = False  # True runs training, False runs loaded model + trajectory rendering
 LOGGING = True  # Enables Wandb logging (must have an account)
 AUTOSAVE_MODEL = True
-MODEL_LOAD_PATH = "../trained_models/PPOAgent-0701-1826.pt"
+MODEL_LOAD_PATH = f"../trained_models/{AGENT.lower()}.pt"
 
 
 # Discounted returns & advantage parameters

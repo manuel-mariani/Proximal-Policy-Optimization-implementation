@@ -4,7 +4,7 @@ from trajectories import ListTrajectory
 
 
 def discount_returns(episodes: ListTrajectory, gamma):
-    """Reward discounting: Vₜ = Rₜ + γVₜ₊₁"""
+    """Reward discounting: Rₜ = rₜ + γRₜ₊₁"""
     discounted = []
     for er in episodes.rewards:
         er_flip = er.flip((0,))
